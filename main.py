@@ -12,3 +12,5 @@ if __name__ == "__main__":
     print(terms)
     dt_matrix = np.array(tfidf.transform(docs).toarray())
     print(dt_matrix)
+    simhash = dm.compute_simhash(dt_matrix, terms)
+    print(simhash)
