@@ -9,4 +9,8 @@ if __name__ == "__main__":
     print(dt_matrix)
     m = 64
     simhash = dm.compute_simhash(dt_matrix, m)
-    print(simhash)
+    p = 2
+    simhash_pieces = dm.split_simhash(simhash, p)
+    print(simhash_pieces)
+    simhash_ints = dm.convert_split_to_int(simhash_pieces)
+    print(simhash_ints)
