@@ -10,5 +10,5 @@ if __name__ == "__main__":
     print(dt_matrix)
     m = 64
     # simhash = dm.compute_simhash(dt_matrix, terms, m)
-    simhash = dm.compute_simhash()
+    simhash = dm.compute_simhash(dt_matrix, m)
     print(simhash)
