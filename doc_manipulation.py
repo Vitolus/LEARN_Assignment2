@@ -54,8 +54,7 @@ def convert_split_to_int(simhash_pieces):
     This function converts each piece of simhash to integer
     """
     print('-----------------------------')
-    simhash_ints = np.empty_like(simhash_pieces)
-    print(simhash_ints.shape)  # TODO: (2, 2, 32) should be (2, 2)
+    simhash_ints = np.empty((simhash_pieces.shape[0], simhash_pieces.shape[1]))
     for i, doc in enumerate(simhash_pieces):
         for j, piece in enumerate(doc):
             simhash_ints[i][j] = int(''.join(map(str, piece)), 2)
