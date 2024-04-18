@@ -1,5 +1,4 @@
 import doc_manipulation as dm
-import numpy as np
 
 
 if __name__ == "__main__":
@@ -9,6 +8,5 @@ if __name__ == "__main__":
     print(terms)
     print(dt_matrix)
     m = 64
-    # simhash = dm.compute_simhash(dt_matrix, terms, m)
     simhash = dm.compute_simhash(dt_matrix, m)
     print(simhash)
