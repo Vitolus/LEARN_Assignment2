@@ -1,7 +1,8 @@
 from faker import Faker
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
-import string
+from string import punctuation
+from math import cos
 
 
 def generate_doc_list():
@@ -13,7 +14,7 @@ def generate_doc_list():
     docs = list()
     for _ in range(1):
         docs.append(fake.sentence(nb_words=10, ext_word_list=['ciao', 'cane', 'gatto'])
-                    .translate(str.maketrans('', '', string.punctuation)).lower())
+                    .translate(str.maketrans('', '', punctuation)).lower())
         docs.append(docs[0])
     docs.append(docs[0].replace('cane', 'gatto', 1))
     docs.append(docs[0].replace('cane', 'gatto', 3))
@@ -101,3 +102,17 @@ def compute_hamming_distances(simhash_ints):
         hamming_distances.append(np.array(pieces))
     print(hamming_distances)
     return hamming_distances
+
+
+def compute_cosine_similarities(hamming_distances, m):
+    """
+    This function computes the cosine similarity between two documents
+    """
+    cosine_similarities = list()
+    for doc in hamming_distances:
+        cosines = np.empty((doc.shape[0]))
+        for j, pieces in enumerate(doc):
+            cosines[j] = (cos(sum(pieces) / m))
+        cosine_similarities.append(cosines)
+    print(cosine_similarities)
+    return cosine_similarities

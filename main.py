@@ -11,3 +11,4 @@ if __name__ == "__main__":
     simhash_pieces = dm.split_simhash(simhash, p)
     simhash_ints = dm.pieces_to_ints(simhash_pieces)
     hamming_distances = dm.compute_hamming_distances(simhash_ints)
+    cosine_similarities = dm.compute_cosine_similarities(hamming_distances, m)
