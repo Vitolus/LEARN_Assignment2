@@ -25,7 +25,7 @@ def compute_doc_term_matrix(docs):
     tfidf = TfidfVectorizer(stop_words='english')
     tfidf.fit(docs)
     terms = np.array(tfidf.get_feature_names_out())
-    dt_matrix = np.array(tfidf.transform(docs).toarray())
+    dt_matrix = tfidf.transform(docs).toarray()
     return dt_matrix, terms
 
 
@@ -38,7 +38,6 @@ def compute_simhash(dt_matrix, m):
     for i, dt in enumerate(dt_matrix):
         for j, w in enumerate(dt):
             simhash[i] += w * rw[j]
-    print(simhash)
     return np.where(simhash > 0, 1, 0)  # binarize signature matrix
 
 
@@ -49,13 +48,23 @@ def split_simhash(simhash, p):
     return np.array(np.array_split(simhash, p, axis=1))
 
 
-def convert_split_to_int(simhash_pieces):
+def pieces_to_ints(simhash_pieces):
     """
     This function converts each piece of simhash to integer
     """
-    print('-----------------------------')
     simhash_ints = np.empty((simhash_pieces.shape[0], simhash_pieces.shape[1]))
     for i, doc in enumerate(simhash_pieces):
         for j, piece in enumerate(doc):
             simhash_ints[i][j] = int(''.join(map(str, piece)), 2)
     return simhash_ints
+
+
+def ints_to_pieces(simhash_ints):
+    """
+    This function converts each integer to piece of simhash
+    """
+    simhash_pieces = np.empty((simhash_ints.shape[0], simhash_ints.shape[1]), dtype=object)
+    for i, doc in enumerate(simhash_ints):
+        for j, num in enumerate(doc):
+            simhash_pieces[i][j] = np.array(list(int(bit) for bit in bin(int(num))[2:].zfill(32)))
+    return simhash_pieces
