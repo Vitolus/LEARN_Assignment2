@@ -1,5 +1,6 @@
 from faker import Faker
 import numpy as np
+import pandas as pd
 from datasets import load_dataset
 from sklearn.feature_extraction.text import TfidfVectorizer
 from string import punctuation
@@ -18,14 +19,14 @@ def generate_synthetic_doc_list():
         docs.append(docs[0])
     docs.append(docs[0].replace('cane', 'gatto', 1))
     docs.append(docs[0].replace('cane', 'sasso', 3))
+    docs = pd.DataFrame(docs, columns=['text']).values.flatten()
     return docs
 
 
 def generate_doc_list():
     dataset = load_dataset("jacquelinehe/enron-emails")
-    docs = np.empty(10000, dtype=object)
-    for i in range(10000):
-        docs[i] = dataset['train'][i]['text']
+    docs = pd.DataFrame([dataset['train'][i]['text'] for i in range(10000)], columns=['text']).values.flatten()
+    #docs = pd.DataFrame([email['text'] for email in dataset['train']], columns=['text']).values.flatten()
     return docs
 
 
@@ -35,10 +36,10 @@ def compute_doc_term_matrix(docs):
     """
     tfidf = TfidfVectorizer(stop_words='english')
     dt_matrix = tfidf.fit_transform(docs)
-    print('dt shape', dt_matrix.shape)
+    #print('dt shape', dt_matrix.shape)
     terms = np.array(tfidf.get_feature_names_out())
-    print('terms', terms)
-    print('dtmatrix', dt_matrix)
+    #print('terms', terms)
+    #print('dtmatrix', dt_matrix)
     return dt_matrix, terms
 
 
@@ -57,7 +58,7 @@ def split_simhash(simhash, p):
     This function splits the simhash in p pieces
     """
     simhash_pieces = np.array([np.array_split(array, p, axis=0) for array in simhash])
-    print(simhash_pieces)
+    #print(simhash_pieces)
     return simhash_pieces
 
 
@@ -66,7 +67,7 @@ def pieces_to_ints(simhash_pieces):
     This function converts each piece of simhash to integer
     """
     simhash_ints = np.apply_along_axis(lambda x: int(''.join(map(str, x)), 2), axis=2, arr=simhash_pieces)
-    print(simhash_ints)
+    #print(simhash_ints)
     return simhash_ints
 
 

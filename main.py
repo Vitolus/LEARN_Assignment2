@@ -1,13 +1,12 @@
 import doc_manipulation as dm
 import time
-
 import gc
 
 
 if __name__ == "__main__":
     docs = dm.generate_doc_list()
-    # docs = dm.generate_synthetic_doc_list()
-    # print(docs)
+    #docs = dm.generate_synthetic_doc_list()
+    print(docs)
     dt_matrix, terms = dm.compute_doc_term_matrix(docs)
     del docs
     gc.collect()
