@@ -89,7 +89,7 @@ def compute_hamming_distances(simhash_ints):
         pieces = [[compute_hamming_distance_piece(simhash_ints[i, k], simhash_ints[j, k])
                    for k in range(n_pieces)] for j in range(i + 1, n_docs)]
         hamming_distances.append(np.array(pieces))
-    print(hamming_distances)
+    #print(hamming_distances)
     return hamming_distances
 
 
@@ -98,5 +98,5 @@ def compute_cosine_similarities(hamming_distances, m):
     This function computes the cosine similarity between two documents
     """
     cosine_similarities = [np.cos(np.sum(doc, axis=1) / m) for doc in hamming_distances]
-    print(cosine_similarities)
+    #print(cosine_similarities)
     return cosine_similarities
