@@ -1,11 +1,12 @@
 from faker import Faker
 import numpy as np
+from datasets import load_dataset
 from sklearn.feature_extraction.text import TfidfVectorizer
 from string import punctuation
 from math import cos
 
 
-def generate_doc_list():
+def generate_synthetic_doc_list():
     """
     This function generates synthetic documents with faker
     """
@@ -17,8 +18,15 @@ def generate_doc_list():
                     .translate(str.maketrans('', '', punctuation)).lower())
         docs.append(docs[0])
     docs.append(docs[0].replace('cane', 'gatto', 1))
-    docs.append(docs[0].replace('cane', 'gatto', 3))
-    print(docs)
+    docs.append(docs[0].replace('cane', 'sasso', 3))
+    return docs
+
+
+def generate_doc_list():
+    dataset = load_dataset("jacquelinehe/enron-emails")
+    docs = np.empty(10000, dtype=object)
+    for i in range(10000):
+        docs[i] = dataset['train'][i]['text']
     return docs
 
 
@@ -27,23 +35,25 @@ def compute_doc_term_matrix(docs):
     This function computes the document-term matrix
     """
     tfidf = TfidfVectorizer(stop_words='english')
-    tfidf.fit(docs)
+    dt_matrix = tfidf.fit_transform(docs)
+    print(dt_matrix.shape)
     terms = np.array(tfidf.get_feature_names_out())
-    dt_matrix = tfidf.transform(docs).toarray()
     print(terms)
     print(dt_matrix)
     return dt_matrix, terms
 
 
-def compute_simhash(dt_matrix, m):
+def compute_simhash(dt_matrix, n_docs, n_terms, m):
     """
     This function computes the simhash of the documents
     """
-    rw = np.random.choice([-1, 1], size=(dt_matrix.shape[1], m))  # random lines [term, m]
-    simhash = np.zeros((dt_matrix.shape[0], m))  # initialize signature matrix [doc, m]
-    for i, doc in enumerate(dt_matrix):
-        for j, term in enumerate(doc):
-            simhash[i] += term * rw[j]
+    rw = np.random.choice([-1, 1], size=(n_terms, m))  # random lines [n_term, m]
+    simhash = np.zeros((n_docs, m))  # initialize signature matrix [n_doc, m]
+    # dt_matrix has shape [[(doc, term), tfidf], ...]
+    print(n_docs, n_terms, dt_matrix.shape, rw.shape, simhash.shape)
+    for i in range(n_docs):
+        for j in range(n_terms):
+            simhash[i] += dt_matrix[i, j] * rw[j]
     simhash = np.where(simhash > 0, 1, 0)  # binarize signature matrix
     return simhash
 
@@ -67,18 +77,6 @@ def pieces_to_ints(simhash_pieces):
             simhash_ints[i][j] = int(''.join(map(str, piece)), 2)
     print(simhash_ints)
     return simhash_ints
-
-
-def ints_to_pieces(simhash_ints):
-    """
-    This function converts each integer to piece of simhash
-    """
-    simhash_pieces = np.empty((simhash_ints.shape[0], simhash_ints.shape[1]), dtype=object)
-    for i, doc in enumerate(simhash_ints):
-        for j, num in enumerate(doc):
-            simhash_pieces[i][j] = np.array(list(int(bit) for bit in bin(int(num))[2:].zfill(32)))
-    print(simhash_pieces)
-    return simhash_pieces
 
 
 def compute_hamming_distance_piece(piece1, piece2):
