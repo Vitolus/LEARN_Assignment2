@@ -3,7 +3,6 @@ import numpy as np
 from datasets import load_dataset
 from sklearn.feature_extraction.text import TfidfVectorizer
 from string import punctuation
-from math import cos
 
 
 def generate_synthetic_doc_list():
@@ -36,24 +35,19 @@ def compute_doc_term_matrix(docs):
     """
     tfidf = TfidfVectorizer(stop_words='english')
     dt_matrix = tfidf.fit_transform(docs)
-    print(dt_matrix.shape)
+    print('dt shape', dt_matrix.shape)
     terms = np.array(tfidf.get_feature_names_out())
-    print(terms)
-    print(dt_matrix)
+    print('terms', terms)
+    print('dtmatrix', dt_matrix)
     return dt_matrix, terms
 
 
-def compute_simhash(dt_matrix, n_docs, n_terms, m):
+def compute_simhash(dt_matrix, n_terms, m):
     """
     This function computes the simhash of the documents
     """
     rw = np.random.choice([-1, 1], size=(n_terms, m))  # random lines [n_term, m]
-    simhash = np.zeros((n_docs, m))  # initialize signature matrix [n_doc, m]
-    # dt_matrix has shape [[(doc, term), tfidf], ...]
-    print(n_docs, n_terms, dt_matrix.shape, rw.shape, simhash.shape)
-    for i in range(n_docs):
-        for j in range(n_terms):
-            simhash[i] += dt_matrix[i, j] * rw[j]
+    simhash = dt_matrix.dot(rw)  # [n_doc, m]
     simhash = np.where(simhash > 0, 1, 0)  # binarize signature matrix
     return simhash
 
@@ -71,19 +65,16 @@ def pieces_to_ints(simhash_pieces):
     """
     This function converts each piece of simhash to integer
     """
-    simhash_ints = np.empty((simhash_pieces.shape[0], simhash_pieces.shape[1]))
-    for i, doc in enumerate(simhash_pieces):
-        for j, piece in enumerate(doc):
-            simhash_ints[i][j] = int(''.join(map(str, piece)), 2)
+    simhash_ints = np.apply_along_axis(lambda x: int(''.join(map(str, x)), 2), axis=2, arr=simhash_pieces)
     print(simhash_ints)
     return simhash_ints
 
 
 def compute_hamming_distance_piece(piece1, piece2):
     """
-    This function computes the hamming distance between the simhashes
+    This function computes the hamming distance between two int pieces of a simhash
     """
-    hamm = bin(np.bitwise_not(np.bitwise_xor(int(piece1), int(piece2)))).count('1') - 1
+    hamm = bin(int(piece1) ^ int(piece2)).count('1')
     return hamm
 
 
@@ -91,12 +82,11 @@ def compute_hamming_distances(simhash_ints):
     """
     This function computes the hamming distances between the simhashes
     """
+    n_docs, n_pieces = simhash_ints.shape
     hamming_distances = list()
-    for i in range(simhash_ints.shape[0] - 1):
-        pieces = list()
-        for j in range(i + 1, simhash_ints.shape[0]):
-            pieces.append(np.array([compute_hamming_distance_piece((simhash_ints[i][k]), (simhash_ints[j][k]))
-                                    for k in range(simhash_ints.shape[1])]))
+    for i in range(n_docs - 1):
+        pieces = [[compute_hamming_distance_piece(simhash_ints[i, k], simhash_ints[j, k])
+                   for k in range(n_pieces)] for j in range(i + 1, n_docs)]
         hamming_distances.append(np.array(pieces))
     print(hamming_distances)
     return hamming_distances
@@ -106,11 +96,6 @@ def compute_cosine_similarities(hamming_distances, m):
     """
     This function computes the cosine similarity between two documents
     """
-    cosine_similarities = list()
-    for doc in hamming_distances:
-        cosines = np.empty((doc.shape[0]))
-        for j, pieces in enumerate(doc):
-            cosines[j] = (cos(sum(pieces) / m))
-        cosine_similarities.append(cosines)
+    cosine_similarities = [np.cos(np.sum(doc, axis=1) / m) for doc in hamming_distances]
     print(cosine_similarities)
     return cosine_similarities

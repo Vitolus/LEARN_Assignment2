@@ -12,19 +12,18 @@ if __name__ == "__main__":
     del docs
     gc.collect()
     m = 128
-    dist = set()
-    # get number of distinct documents
-    for i, j in zip(*dt_matrix.nonzero()):
-        dist.add(i)
-    n_docs = len(dist)
-    del dist
-    gc.collect()
-    simhash_time = time.perf_counter()
-    simhash = dm.compute_simhash(dt_matrix, n_docs, terms.shape[0], m)
-    simhash_time = time.perf_counter() - simhash_time
-    print(simhash_time)
+    comp_time = time.perf_counter()
+    simhash = dm.compute_simhash(dt_matrix, terms.shape[0], m)
+    comp_time = time.perf_counter() - comp_time
+    print('\nsimhash time', comp_time, '\n')
     p = m/32
     simhash_pieces = dm.split_simhash(simhash, p)
     simhash_ints = dm.pieces_to_ints(simhash_pieces)
+    comp_time = time.perf_counter()
     hamming_distances = dm.compute_hamming_distances(simhash_ints)
+    comp_time = time.perf_counter() - comp_time
+    print('\nhamming time', comp_time, '\n')
+    comp_time = time.perf_counter()
     cosine_similarities = dm.compute_cosine_similarities(hamming_distances, m)
+    comp_time = time.perf_counter() - comp_time
+    print('\ncosine time', comp_time, '\n')
