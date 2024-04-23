@@ -1,10 +1,14 @@
+from dotenv import load_dotenv
+import os
 import doc_manipulation as dm
 import time
 import gc
 from pyspark.sql import SparkSession
+from pyspark.ml.feature import HashingTF, IDF, Tokenizer, StopWordsRemover
+
 
 def local_main():
-#docs = dm.generate_doc_list()
+    #docs = dm.generate_doc_list()
     docs = dm.generate_synthetic_doc_list()
     print(docs)
     dt_matrix, terms = dm.compute_doc_term_matrix(docs)
@@ -32,11 +36,20 @@ def local_main():
 def spark_main():
     spark = SparkSession.builder.appName('SimHash').getOrCreate()
     sc = spark.sparkContext
-    df = spark.createDataFrame(dm.generate_synthetic_doc_list())
-    df.show()
-    df.printSchema()
+    docs = dm.generate_synthetic_doc_list(spark)
+    #docs = dm.generate_doc_list(spark)
+    print(docs.show(10))
+
 
 
 if __name__ == "__main__":
+    load_dotenv()
+    os.environ["PYSPARK_PYTHON"] = os.getenv("PYSPARK_PYTHON")
+    pyspark_python = os.environ.get("PYSPARK_PYTHON", None)
+    if pyspark_python:
+        print(f"PySpark is using this Python interpreter: {pyspark_python}")
+    else:
+        print("PySpark is using the system's default Python interpreter.")
     #local_main()
     spark_main()
+

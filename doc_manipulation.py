@@ -1,12 +1,11 @@
 from faker import Faker
 import numpy as np
 import pandas as pd
-from datasets import load_dataset
 from sklearn.feature_extraction.text import TfidfVectorizer
 from string import punctuation
 
 
-def generate_synthetic_doc_list():
+def generate_synthetic_doc_list(spark):
     """
     This function generates synthetic documents with faker
     """
@@ -19,17 +18,14 @@ def generate_synthetic_doc_list():
         docs.append(docs[0])
         docs.append(docs[0].replace('dog', 'cat', 1))
         docs.append(docs[0].replace('dog', 'cat', 3))
-        docs.append('the pen is on the dusted table, but the table is not clean')
-        docs.append('the pen is on the dusted floor, but the table is not clean')
-    docs = pd.DataFrame(docs, columns=['text']).values.flatten()
-    return docs
+        docs.append('the pen is on the dusted table but the table is not clean')
+        docs.append('the pen is on the dusted floor but the table is not clean')
+    return spark.createDataFrame(pd.DataFrame(docs, columns=['text']))
 
 
-def generate_doc_list():
-    dataset = load_dataset("jacquelinehe/enron-emails")
-    docs = pd.DataFrame([dataset['train'][i]['text'] for i in range(10000)], columns=['text']).values.flatten()
-    #docs = pd.DataFrame([email['text'] for email in dataset['train']], columns=['text']).values.flatten()
-    return docs
+def generate_doc_list(spark):
+    # spark dataframe already parallelized (distributed)
+    return spark.read.parquet("./data/train-00000-of-00004.parquet")  # ./data/*
 
 
 def compute_doc_term_matrix(docs):
@@ -43,6 +39,7 @@ def compute_doc_term_matrix(docs):
     print('terms', terms)
     print('dtmatrix', dt_matrix)
     return dt_matrix, terms
+
 
 def compute_rw(n_terms, m):
     """
