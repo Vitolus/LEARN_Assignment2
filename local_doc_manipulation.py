@@ -28,7 +28,7 @@ def generate_doc_list(spark):
     return spark.read.parquet("./data/train-00000-of-00004.parquet")  # ./data/*
 
 
-def compute_doc_term_matrix(docs):
+def compute_tfidf_terms(docs):
     """
     This function computes the document-term matrix
     """

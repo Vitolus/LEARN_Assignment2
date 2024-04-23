@@ -5,14 +5,13 @@ import doc_manipulation as dm
 import time
 import gc
 from pyspark.sql import SparkSession
-from pyspark.ml.feature import HashingTF, IDF, Tokenizer, StopWordsRemover
 
 
 def local_main():
     #docs = ldm.generate_doc_list()
     docs = ldm.generate_synthetic_doc_list()
     print(docs)
-    dt_matrix, terms = ldm.compute_doc_term_matrix(docs)
+    dt_matrix, terms = ldm.compute_tfidf_terms(docs)
     del docs
     gc.collect()
     m = 256
@@ -39,7 +38,11 @@ def spark_main():
     sc = spark.sparkContext
     docs = dm.generate_synthetic_doc_list(spark)
     #docs = dm.generate_doc_list(spark)
+    print("sentences")
     print(docs.show(10))
+    docs = dm.compute_tfidf(docs)
+    print("tfidf")
+    print(docs.select("features").show(10, truncate=False))
 
 
 
@@ -51,6 +54,6 @@ if __name__ == "__main__":
         print(f"PySpark is using this Python interpreter: {pyspark_python}")
     else:
         print("PySpark is using the system's default Python interpreter.")
-    #local_main()
     spark_main()
+    # local_main()
 
