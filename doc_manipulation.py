@@ -2,6 +2,7 @@ from faker import Faker
 import pandas as pd
 from string import punctuation
 from pyspark.ml.feature import HashingTF, IDF, Tokenizer, StopWordsRemover
+from pyspark.sql.functions import explode, lower, regexp_replace, col
 import gc
 
 
@@ -13,13 +14,12 @@ def generate_synthetic_doc_list(spark):
     Faker.seed(0)
     docs = list()
     for _ in range(1):
-        docs.append(fake.sentence(nb_words=15, ext_word_list=['hello', 'dog', 'cat'])
-                    .translate(str.maketrans('', '', punctuation)).lower())
+        docs.append(fake.sentence(nb_words=15, ext_word_list=['hello', 'dog', 'cat']))
         docs.append(docs[0])
         docs.append(docs[0].replace('dog', 'cat', 1))
         docs.append(docs[0].replace('dog', 'cat', 3))
-        docs.append('the pen is on the dusted table but the table is not clean')
-        docs.append('the pen is on the dusted floor but the table is not clean')
+        docs.append('the pen is on the dusted table, but the table is not clean')
+        docs.append('the pen is on the dusted floor, but the table is not clean')
     return spark.createDataFrame(pd.DataFrame(docs, columns=['text']))
 
 
@@ -32,16 +32,15 @@ def compute_tfidf(docs):
     """
     This function computes the TF-IDF of a list of documents
     """
-    # TODO: test with CountVectorizer
-    docs = (HashingTF(inputCol="filtered", outputCol="rawFeatures")
-            .transform(StopWordsRemover(inputCol="words", outputCol="filtered")
-                       .transform(Tokenizer(inputCol="text", outputCol="words")
-                                  .transform(docs)
-                                  )
-                       )
-            )
+    docs = (StopWordsRemover(inputCol="words", outputCol="filtered")  # Remove stop words
+            .transform(Tokenizer(inputCol="text", outputCol="words")  # Tokenize the documents
+                       .transform(docs.withColumn("text", lower(regexp_replace(col("text"), '[^\w\s]', ''))))))
+    gc.collect()
+    # Compute the number of distinct terms across all documents
+    n_terms = docs.select(explode(docs.filtered)).distinct().count()
+    docs = HashingTF(inputCol="filtered", outputCol="rawFeatures").transform(docs)  # Compute the term frequencies
     gc.collect()
     docs.persist()  # Cache the dataframe
     return (IDF(inputCol="rawFeatures", outputCol="features")
             .fit(docs)
-            .transform(docs))  # Compute the inverse document frequencies
+            .transform(docs), n_terms)  # Compute the inverse document frequencies

@@ -40,9 +40,10 @@ def spark_main():
     #docs = dm.generate_doc_list(spark)
     print("sentences")
     print(docs.show(10))
-    docs = dm.compute_tfidf(docs)
+    docs, n_terms = dm.compute_tfidf(docs)
     print("tfidf")
-    print(docs.select("features").show(10, truncate=False))
+    print(n_terms)
+    print(docs.select("filtered", "features").show(10, truncate=False))
 
 
 
