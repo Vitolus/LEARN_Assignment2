@@ -35,15 +35,23 @@ def local_main():
 
 def spark_main():
     spark = SparkSession.builder.appName('SimHash').getOrCreate()
-    sc = spark.sparkContext
     docs = dm.generate_synthetic_doc_list(spark)
     #docs = dm.generate_doc_list(spark)
     print("sentences")
-    print(docs.show(10))
+    docs.show(10)
     docs, n_terms = dm.compute_tfidf(docs)
     print("tfidf")
-    print(n_terms)
-    print(docs.select("filtered", "features").show(10, truncate=False))
+    docs.show(10, truncate=False)
+    m = 128
+    rw = dm.compute_rw(spark, n_terms, m)
+    print("rw")
+    rw.show(10)
+    comp_time = time.perf_counter()
+    simhash = dm.compute_simhash(spark, docs, rw)
+    comp_time = time.perf_counter() - comp_time
+    print('\nsimhash time', comp_time, '\n')
+    print("simhash")
+    simhash.show(10)
 
 
 
