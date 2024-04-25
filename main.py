@@ -37,21 +37,17 @@ def spark_main():
     spark = SparkSession.builder.appName('SimHash').getOrCreate()
     docs = dm.generate_synthetic_doc_list(spark)
     #docs = dm.generate_doc_list(spark)
-    print("sentences")
     docs.show(10)
     docs, n_terms = dm.compute_tfidf(docs)
-    print("tfidf")
     docs.show(10, truncate=False)
-    m = 128
+    m = 64
     rw = dm.compute_rw(spark, n_terms, m)
-    print("rw")
-    rw.show(10)
+    rw.show(10, truncate=False)
     comp_time = time.perf_counter()
-    simhash = dm.compute_simhash(spark, docs, rw)
+    simhash = dm.compute_simhash(spark, docs, rw, m)
     comp_time = time.perf_counter() - comp_time
     print('\nsimhash time', comp_time, '\n')
-    print("simhash")
-    simhash.show(10)
+    simhash.show(10, truncate=False)
 
 
 
