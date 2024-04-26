@@ -89,5 +89,6 @@ def split_simhash(spark, simhash, p):
     simhash = simhash.withColumn('pieces', F.udf(lambda lst: [lst[i:i + p] for i in range(0, len(lst), p)],
                                                  ArrayType(ArrayType(IntegerType())))(simhash['simhash']))
     for i in range(p):
-        simhash = simhash.withColumn(f'piece{i + 1}', simhash['pieces'][i])
+        simhash = simhash.withColumn(f'piece{i + 1}', F.udf(lambda lst: int(''.join(str(i) for i in lst), 2),
+                                                            IntegerType())(simhash['pieces'][i]))
     return simhash.drop('simhash', 'pieces')
