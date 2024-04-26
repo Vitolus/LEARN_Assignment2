@@ -23,8 +23,9 @@ def generate_synthetic_doc_list(spark):
         docs.append(docs[0].replace('dog', 'cat', 3))
         docs.append('the pen is on the dusted table, but the table is not clean')
         docs.append('the pen is on the dusted floor, but the table is not clean')
-    docs = spark.createDataFrame(pd.DataFrame(docs, columns=['text'])).withColumn('index', F.lit(0))
-    return docs.withColumn("index", F.row_number().over(Window.partitionBy('index').orderBy(F.lit(0))) - 1)
+    docs = spark.sparkContext.parallelize(docs)
+    return docs.zipWithIndex().map(lambda x: (x[1], x[0]))
+
 
 
 def generate_doc_list(spark):
@@ -50,7 +51,7 @@ def compute_tfidf(docs):
             .fit(docs)
             .transform(docs)).drop("tf")  # Compute the inverse document frequencies
     return (Normalizer(inputCol="features", outputCol="tfidf", p=2.0)
-            .transform(docs).drop("features"), n_terms)  # Normalize the TF-IDF vectors
+            .transform(docs).drop("features").rdd.map(lambda row: (row['index'], row['tfidf'])), n_terms)  # Normalize the TF-IDF vectors
 
 
 def compute_rw(spark, n_terms, m):
@@ -58,9 +59,9 @@ def compute_rw(spark, n_terms, m):
     This function computes the random lines
     """
     # random lines [n_term, m]
-    rw = spark.createDataFrame(map(lambda x: Row(rw=Vectors.dense(x)),
-                                   np.random.choice([-1, 1], size=(n_terms, m))), ['rw']).withColumn('index', F.lit(0))
-    return rw.withColumn("index", F.row_number().over(Window.partitionBy('index').orderBy(F.lit(0))) - 1)
+    rw = map(lambda x: (Vectors.dense(x), ), np.random.choice([-1, 1], size=(n_terms, m)))
+    rw = spark.sparkContext.parallelize(rw)
+    return rw.zipWithIndex().map(lambda x: (x[1], x[0]))
 
 
 def compute_simhash(spark, docs, rw, m):
@@ -75,9 +76,11 @@ def compute_simhash(spark, docs, rw, m):
         tfidf_row = docs.filter(docs.index == doc).select('tfidf').collect()[0].tfidf  # get the tfidf of the document
         val = np.zeros(m)  # initialize the simhash vector
         for i in range(tfidf_row.indices.size):  # iterate over the non-zero elements of the tfidf vector
-            val += tfidf_row.values[i] * rw.filter(rw.index == tfidf_row.indices[i]).select('rw').collect()[0].rw  # add the wighted random line to the simhash vector
+            val += tfidf_row.values[i] * rw.filter(rw.index == tfidf_row.indices[i]).select('rw').collect()[
+                0].rw  # add the wighted random line to the simhash vector
         val = list(map(lambda y: 1 if y > 0 else 0, val))  # binarize the simhash vector
-        simhash = simhash.union(spark.createDataFrame([Row(index=doc, sim=val)]))  # append the simhash vector to the dataframe
+        simhash = simhash.union(
+            spark.createDataFrame([Row(index=doc, sim=val)]))  # append the simhash vector to the dataframe
     # binarize signature matrix
     return simhash
 
@@ -92,3 +95,35 @@ def split_simhash(spark, simhash, p):
         simhash = simhash.withColumn(f'piece{i + 1}', F.udf(lambda lst: int(''.join(str(i) for i in lst), 2),
                                                             IntegerType())(simhash['pieces'][i]))
     return simhash.drop('simhash', 'pieces')
+
+
+def compute_hamming_distance_piece(piece1, piece2):
+    """
+    This function computes the hamming distance between two int pieces of a simhash
+    """
+    hamm = bin(int(piece1) ^ int(piece2)).count('1')
+    return hamm
+
+
+def gather_similar_simhash_groups(spark, simhash, p):
+    """
+    This function gathers the similar simhash pairs for each document
+    """
+    groups = spark.createDataFrame([], StructType([StructField("index", IntegerType(), False),
+                                                   StructField("group", ArrayType(IntegerType()), False)]))
+    for doc in range(simhash.count()):  # iterate over the documents
+        print('*********************')
+        print('doc', doc)
+        # for each document, iterate over the other documents
+        similar_docs = list()
+        for doc2 in range(doc + 1, simhash.count()):
+            # for each pair of documents, iterate over the pieces of the simhash
+            n_equal_pieces = 0
+            for i in range(p):
+                if (simhash.filter(simhash.index == doc).select(f'piece{i + 1}').first()[0] ==
+                        simhash.filter(simhash.index == doc2).select(f'piece{i + 1}').first()[0]):
+                    n_equal_pieces += 1
+            if n_equal_pieces >= p/2:
+                similar_docs.append(doc2)
+        groups = groups.union(spark.createDataFrame([Row(index=doc, group=similar_docs)]))
+    return groups
