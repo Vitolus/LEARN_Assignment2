@@ -67,15 +67,27 @@ def compute_simhash(spark, docs, rw, m):
     """
     This function computes the simhash of the documents
     """
+
     # create a new empty dataframe to store simhash with columns index of integer and simhash of vector
     simhash = spark.createDataFrame([], StructType([StructField("index", IntegerType(), False),
-                                                    StructField("simhash", ArrayType(FloatType()), False)]))
+                                                    StructField("simhash", ArrayType(IntegerType()), False)]))
     for doc in range(docs.count()):  # iterate over the documents
         tfidf_row = docs.filter(docs.index == doc).select('tfidf').collect()[0].tfidf  # get the tfidf of the document
         val = np.zeros(m)  # initialize the simhash vector
         for i in range(tfidf_row.indices.size):  # iterate over the non-zero elements of the tfidf vector
             val += tfidf_row.values[i] * rw.filter(rw.index == tfidf_row.indices[i]).select('rw').collect()[0].rw  # add the wighted random line to the simhash vector
-        simhash = simhash.union(spark.createDataFrame([Row(index=doc, sim=val.tolist())]))  # append the simhash vector to the dataframe
+        val = list(map(lambda y: 1 if y > 0 else 0, val))  # binarize the simhash vector
+        simhash = simhash.union(spark.createDataFrame([Row(index=doc, sim=val)]))  # append the simhash vector to the dataframe
     # binarize signature matrix
-    return simhash.withColumn('simhash', F.udf(lambda x: list(map(lambda y: 1 if y > 0 else 0, x)),
-                                               ArrayType(IntegerType()))(F.col('simhash')))  # binarize signature matrix
+    return simhash
+
+
+def split_simhash(spark, simhash, p):
+    """
+    This function splits the simhash in p pieces
+    """
+    simhash = simhash.withColumn('pieces', F.udf(lambda lst: [lst[i:i + p] for i in range(0, len(lst), p)],
+                                                 ArrayType(ArrayType(IntegerType())))(simhash['simhash']))
+    for i in range(p):
+        simhash = simhash.withColumn(f'piece{i + 1}', simhash['pieces'][i])
+    return simhash.drop('simhash', 'pieces')

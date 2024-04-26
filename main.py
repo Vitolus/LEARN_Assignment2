@@ -41,6 +41,7 @@ def spark_main():
     docs, n_terms = dm.compute_tfidf(docs)
     docs.show(10, truncate=False)
     m = 64
+    p = 8
     rw = dm.compute_rw(spark, n_terms, m)
     rw.show(10, truncate=False)
     comp_time = time.perf_counter()
@@ -48,6 +49,11 @@ def spark_main():
     comp_time = time.perf_counter() - comp_time
     print('\nsimhash time', comp_time, '\n')
     simhash.show(10, truncate=False)
+    comp_time = time.perf_counter()
+    simhash_pieces = dm.split_simhash(spark, simhash, p)
+    comp_time = time.perf_counter() - comp_time
+    print('\nsplit time', comp_time, '\n')
+    simhash_pieces.show(10, truncate=False)
 
 
 
