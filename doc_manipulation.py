@@ -100,10 +100,10 @@ def split_simhash(spark, simhash, p):
 
     def split(doc_index, simhash):
         # Split the simhash into p pieces
-        pieces = [simhash[i:i + p] for i in range(0, len(simhash), p)]
+        simhash_pieces = [simhash[i:i + p] for i in range(0, len(simhash), p)]
         # Convert each piece to an integer
-        pieces = [int(''.join(str(i) for i in piece), 2) for piece in pieces]
-        return doc_index, pieces
+        simhash_pieces = [int(''.join(str(i) for i in piece), 2) for piece in simhash_pieces]
+        return doc_index, simhash_pieces
 
     # Apply the split_simhash function to each element of the RDD
     return simhash.map(lambda x: split(*x))
@@ -121,21 +121,3 @@ def gather_similar_simhash_groups(spark, simhash, p):
     """
     This function gathers the similar simhash pairs for each document
     """
-    groups = spark.createDataFrame([], StructType([StructField("index", IntegerType(), False),
-                                                   StructField("group", ArrayType(IntegerType()), False)]))
-    for doc in range(simhash.count()):  # iterate over the documents
-        print('*********************')
-        print('doc', doc)
-        # for each document, iterate over the other documents
-        similar_docs = list()
-        for doc2 in range(doc + 1, simhash.count()):
-            # for each pair of documents, iterate over the pieces of the simhash
-            n_equal_pieces = 0
-            for i in range(p):
-                if (simhash.filter(simhash.index == doc).select(f'piece{i + 1}').first()[0] ==
-                        simhash.filter(simhash.index == doc2).select(f'piece{i + 1}').first()[0]):
-                    n_equal_pieces += 1
-            if n_equal_pieces >= p / 2:
-                similar_docs.append(doc2)
-        groups = groups.union(spark.createDataFrame([Row(index=doc, group=similar_docs)]))
-    return groups
