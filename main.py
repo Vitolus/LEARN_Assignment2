@@ -48,17 +48,23 @@ def spark_main():
     docs = dm.generate_synthetic_doc_list(spark)
     #docs = dm.generate_doc_list(spark)
     print(docs.take(10))
+    comp_time = time.perf_counter()
     docs, n_terms = dm.compute_tfidf(docs.toDF(['index', 'text']))
+    comp_time = time.perf_counter() - comp_time
+    print('\ntfidf time', comp_time, '\n')
     print(docs.take(10))
     m = 64
     p = 8
+    comp_time = time.perf_counter()
     rw = dm.compute_rw(spark, n_terms, m)
+    comp_time = time.perf_counter() - comp_time
+    print('\nrw time', comp_time, '\n')
     print(rw.take(10))
     comp_time = time.perf_counter()
-    # simhash = dm.compute_simhash(spark, docs, rw, m)
-    # comp_time = time.perf_counter() - comp_time
-    # print('\nsimhash time', comp_time, '\n')
-    # simhash.show(10, truncate=False)
+    simhash = dm.compute_simhash(spark, docs, rw)
+    comp_time = time.perf_counter() - comp_time
+    print('\nsimhash time', comp_time, '\n')
+    print(simhash.take(10))
     # comp_time = time.perf_counter()
     # simhash_pieces = dm.split_simhash(spark, simhash, p)
     # comp_time = time.perf_counter() - comp_time
