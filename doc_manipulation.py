@@ -109,15 +109,22 @@ def split_simhash(spark, simhash, p):
     return simhash.map(lambda x: split(*x))
 
 
-def compute_hamming_distance_piece(piece1, piece2):
+def gather_similar_simhash(spark, simhash, p):
     """
-    This function computes the hamming distance between two int pieces of a simhash
+    This function gathers groups of documents that share at least half of their simhash pieces
     """
-    hamm = bin(int(piece1) ^ int(piece2)).count('1')
-    return hamm
+    # Broadcast the simhash RDD
+    simhash_broadcast = spark.sparkContext.broadcast(simhash.collectAsMap())
 
+    def gather(doc_index, pieces):
+        similar_docs = list()
+        for succ_index in range(doc_index + 1, len(simhash_broadcast.value)):
+            n_similar = 0
+            for i in range(p):
+                if pieces[i] == simhash_broadcast.value[succ_index][i]:
+                    n_similar += 1
+            if n_similar >= p / 2:
+                similar_docs.append(succ_index)
+        return doc_index, similar_docs
 
-def gather_similar_simhash_groups(spark, simhash, p):
-    """
-    This function gathers the similar simhash pairs for each document
-    """
+    return simhash.map(lambda x: gather(*x))
