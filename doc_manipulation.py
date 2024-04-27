@@ -6,6 +6,7 @@ from pyspark.sql import Row, Window
 from pyspark.ml.linalg import Vectors
 from pyspark.sql.types import *
 from operator import add
+from itertools import islice
 import gc
 
 
@@ -118,7 +119,7 @@ def gather_similar_simhash(spark, simhash, p):
 
     def gather(doc_index, pieces):
         similar_docs = list()
-        for succ_index in range(doc_index + 1, len(simhash_broadcast.value)):
+        for succ_index in islice(simhash_broadcast.value, doc_index + 1, None):
             n_similar = sum(p1 == p2 for p1, p2 in zip(pieces, simhash_broadcast.value[succ_index]))
             if n_similar >= p / 2:
                 similar_docs.append(succ_index)
