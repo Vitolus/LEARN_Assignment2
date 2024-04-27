@@ -84,8 +84,7 @@ def compute_simhash(spark, docs, rw):
             # Get the corresponding random line
             random_line = rw_broadcast.value[word_index]
             # Add the random line to the signature, scaled by the TF-IDF value
-            scaled_line = [value * tfidf_value for value in random_line]
-            signature = list(map(add, signature, scaled_line))
+            signature = [s + value * tfidf_value for s, value in zip(signature, random_line)]
         # Convert the signature to a SimHash by taking the sign of each element
         simhash_bin = [1 if value > 0 else 0 for value in signature[0]]
         return doc_index, simhash_bin
