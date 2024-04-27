@@ -97,12 +97,16 @@ def split_simhash(spark, simhash, p):
     """
     This function splits the simhash in p pieces
     """
-    simhash = simhash.withColumn('pieces', F.udf(lambda lst: [lst[i:i + p] for i in range(0, len(lst), p)],
-                                                 ArrayType(ArrayType(IntegerType())))(simhash['simhash']))
-    for i in range(p):
-        simhash = simhash.withColumn(f'piece{i + 1}', F.udf(lambda lst: int(''.join(str(i) for i in lst), 2),
-                                                            IntegerType())(simhash['pieces'][i]))
-    return simhash.drop('simhash', 'pieces')
+
+    def split(doc_index, simhash):
+        # Split the simhash into p pieces
+        pieces = [simhash[i:i + p] for i in range(0, len(simhash), p)]
+        # Convert each piece to an integer
+        pieces = [int(''.join(str(i) for i in piece), 2) for piece in pieces]
+        return doc_index, pieces
+
+    # Apply the split_simhash function to each element of the RDD
+    return simhash.map(lambda x: split(*x))
 
 
 def compute_hamming_distance_piece(piece1, piece2):

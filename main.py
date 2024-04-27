@@ -65,11 +65,11 @@ def spark_main():
     comp_time = time.perf_counter() - comp_time
     print('\nsimhash time', comp_time, '\n')
     print(simhash.take(10))
-    # comp_time = time.perf_counter()
-    # simhash_pieces = dm.split_simhash(spark, simhash, p)
-    # comp_time = time.perf_counter() - comp_time
-    # print('\nsplit time', comp_time, '\n')
-    # simhash_pieces.show(10, truncate=False)
+    comp_time = time.perf_counter()
+    simhash_pieces = dm.split_simhash(spark, simhash, p)
+    comp_time = time.perf_counter() - comp_time
+    print('\nsplit time', comp_time, '\n')
+    print(simhash_pieces.take(10))
     # comp_time = time.perf_counter()
     # groups = dm.gather_similar_simhash_groups(spark, simhash_pieces, p)
     # comp_time = time.perf_counter() - comp_time
