@@ -119,10 +119,7 @@ def gather_similar_simhash(spark, simhash, p):
     def gather(doc_index, pieces):
         similar_docs = list()
         for succ_index in range(doc_index + 1, len(simhash_broadcast.value)):
-            n_similar = 0
-            for i in range(p):
-                if pieces[i] == simhash_broadcast.value[succ_index][i]:
-                    n_similar += 1
+            n_similar = sum(p1 == p2 for p1, p2 in zip(pieces, simhash_broadcast.value[succ_index]))
             if n_similar >= p / 2:
                 similar_docs.append(succ_index)
         return doc_index, similar_docs
