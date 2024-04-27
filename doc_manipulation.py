@@ -60,7 +60,8 @@ def compute_rw(spark, n_terms, m):
     This function computes the random lines
     """
     # random lines [n_term, m]
-    rw = map(lambda x: (Vectors.dense(x),), np.random.choice([-1, 1], size=(n_terms, m)))
+    np.random.seed(0)
+    rw = [(Vectors.dense(x),) for x in np.random.choice([-1, 1], size=(n_terms, m))]
     rw = spark.sparkContext.parallelize(rw)
     return rw.zipWithIndex().map(lambda x: (x[1], x[0]))
 
@@ -99,15 +100,15 @@ def split_simhash(spark, simhash, p):
     This function splits the simhash in p pieces
     """
 
-    def split(doc_index, simhash):
+    def split(doc_index, sims):
         # Split the simhash into p pieces
-        simhash_pieces = [simhash[i:i + p] for i in range(0, len(simhash), p)]
-        # Convert each piece to an integer
-        simhash_pieces = [int(''.join(str(i) for i in piece), 2) for piece in simhash_pieces]
-        return doc_index, simhash_pieces
+        sim_pieces = [sims[i:i + p] for i in range(0, len(sims), p)]
+        return doc_index, sim_pieces
 
     # Apply the split_simhash function to each element of the RDD
-    return simhash.map(lambda x: split(*x))
+    simhash_pieces = simhash.map(lambda x: split(*x))
+    # Convert each piece to an integer
+    return simhash_pieces.map(lambda x: (x[0], [int(''.join(str(bit) for bit in piece), 2) for piece in x[1]]))
 
 
 def gather_similar_simhash(spark, simhash, p):
