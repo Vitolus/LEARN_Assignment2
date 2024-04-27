@@ -130,3 +130,13 @@ def gather_similar_simhash(spark, simhash, p):
         return doc_index, similar_docs
 
     return simhash.map(lambda x: gather(*x))
+
+
+def compute_hamming_distance_piece(piece1, piece2):
+    """
+    This function computes the hamming distance between two int pieces of a simhash
+    """
+    hamm = bin(int(piece1) ^ int(piece2)).count('1')
+    return hamm
+
+
