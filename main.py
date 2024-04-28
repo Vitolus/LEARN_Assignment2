@@ -63,7 +63,7 @@ def spark_main(m=64, p=8, s=0.9):
     #docs = dm.generate_doc_list(spark)
     print(docs.take(10))
     simhash, groups = mapper(spark, docs, m, p)
-    #reducer(spark, simhash, groups, s)
+    reducer(spark, simhash, groups, s)
 
 
 

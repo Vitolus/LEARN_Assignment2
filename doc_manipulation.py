@@ -147,15 +147,6 @@ def compute_hamming_distances(spark, simhash, groups):
     """
     This function computes the hamming distances between the simhashes
     """
-    simhash_broadcast = spark.sparkContext.broadcast(simhash.collectAsMap())
-
-    def hamming_distance(doc_index, similar_docs):
-        distance = 0
-        hammings = list()
-        for similar_doc in similar_docs:
-            distance += (compute_hamming_distance_piece(p1, p2)
-                         for p1, p2 in zip(simhash_broadcast.value[doc_index], simhash_broadcast.value[similar_doc]))
-            hammings.append(distance)
-        return doc_index, hammings
-
-    return groups.map(lambda x: hamming_distance(*x))
+    # join the simhash and groups RDDs
+    joined_rdd = simhash.join(groups)
+    return joined_rdd
