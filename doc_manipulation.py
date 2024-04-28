@@ -94,8 +94,8 @@ def compute_simhash(spark, docs, rw):
     # Group the joined RDD by docID
     grouped_rdd = joined_rdd.groupBy(lambda x: x[1][0][0])
     # Apply the SimHash function to each group
-    simhash_rdd = grouped_rdd.map(lambda x: simhash(x[0], [value[1][0][1] for value in list(x[1])], [value[1][1] for value in list(x[1])]))
-    return simhash_rdd
+    return grouped_rdd.map(
+        lambda x: simhash(x[0], [value[1][0][1] for value in list(x[1])],[value[1][1] for value in list(x[1])]))
 
 
 def split_simhash(spark, simhash, p):
