@@ -7,14 +7,14 @@ import gc
 from pyspark.sql import SparkSession
 
 
-def mapper(spark, docs, m, p, s):
+def mapper(spark, docs, m, p):
     """
     Map Phase:
-    Input: document corpus, simhash size m, number of pieces p, minimum similarity threshold s
-    Processing: Compute the SimHash for each piece of input data. This could involve preprocessing the data, extracting
-    features, and then hashing the features to compute the SimHash.
-    Output: The output of the Map phase would be key-value pairs where the key is the SimHash and the value is the
-    original data or some identifier for the data.
+    Input: Document corpus, simhash size m, number of pieces p, minimum similarity threshold s
+    Processing: Compute the SimHash for each input document. Split each SimHash into p pieces. Group the documents by
+    potential similarity.
+    Output: Key-value pairs where the key is the docID and the value is the SimHash. Key-value pairs where the key is
+    the docID and the value is a list of docID of potentially similar documents
     """
     comp_time = time.perf_counter()
     docs, n_terms = dm.compute_tfidf(docs.toDF(['index', 'text']))
@@ -25,7 +25,6 @@ def mapper(spark, docs, m, p, s):
     rw = dm.compute_rw(spark, n_terms, m)
     comp_time = time.perf_counter() - comp_time
     print('\nrw time', comp_time, '\n')
-    print(rw.take(10))
     comp_time = time.perf_counter()
     simhash = dm.compute_simhash(spark, docs, rw)
     comp_time = time.perf_counter() - comp_time
@@ -41,20 +40,30 @@ def mapper(spark, docs, m, p, s):
     comp_time = time.perf_counter() - comp_time
     print('\ngather time', comp_time, '\n')
     print(groups.take(10))
+    return simhash_pieces, groups
+
+
+def reducer(spark, simhash, groups, s):
+    """
+    Reduce Phase:
+    Input: The 2 sets key-value pairs output by the Map phase.
+    Processing: For each set of values that are potentially similar, compute the cosine similarity between the documents.
+    Output: Key-value pairs where the key is the docID and the value is a list of docID of similar documents
+    """
+    comp_time = time.perf_counter()
+    hamming_distances = dm.compute_hamming_distances(spark, simhash, groups)
+    comp_time = time.perf_counter() - comp_time
+    print('\nhamming time', comp_time, '\n')
+    print(hamming_distances.take(10))
 
 
 def spark_main(m=64, p=8, s=0.9):
-    """
-    Reduce Phase:
-    Input: The key-value pairs output by the Map phase.
-    Processing: For each set of values that share the same SimHash (i.e., they are potential duplicates), perform some operation. This could be as simple as listing the potential duplicates together, or it could involve further analysis.
-    Output: The output of the Reduce phase would be the results of your duplicate detection or analysis.
-    """
     spark = SparkSession.builder.appName('SimHash').getOrCreate()
     docs = dm.generate_synthetic_doc_list(spark)
     #docs = dm.generate_doc_list(spark)
     print(docs.take(10))
-    mapper(spark, docs, m, p, s)
+    simhash, groups = mapper(spark, docs, m, p)
+    #reducer(spark, simhash, groups, s)
 
 
 

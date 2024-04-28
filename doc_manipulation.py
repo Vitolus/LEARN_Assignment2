@@ -56,7 +56,8 @@ def compute_tfidf(docs):
             .transform(docs)).drop("tf")
     # Normalize the TF-IDF vectors and return the result as an RDD
     return (Normalizer(inputCol="features", outputCol="tfidf", p=2.0)
-            .transform(docs).drop("features").rdd.map(lambda row: (row['index'], row['tfidf']))), n_terms  # Normalize the TF-IDF vectors
+            .transform(docs).drop("features").rdd.map(
+        lambda row: (row['index'], row['tfidf']))), n_terms  # Normalize the TF-IDF vectors
 
 
 def compute_rw(spark, n_terms, m):
@@ -74,27 +75,26 @@ def compute_simhash(spark, docs, rw):
     """
     This function computes the simhash of the documents
     """
-    # Broadcast the random lines for efficiency
-    rw_broadcast = spark.sparkContext.broadcast(rw.collectAsMap())
+    # Explode the docs RDD to multiple rows, each with a wordID
+    exploded_docs = docs.flatMap(lambda x: [(int(wordID), (x[0], x[1][int(wordID)])) for wordID in x[1].indices])
+    # Join the exploded_docs and rw RDDs based on wordID
+    joined_rdd = exploded_docs.join(rw)
 
-    def simhash(doc_index, tfidf):
+    def simhash(doc_index, tfidf_values, random_lines):
         # Initialize an empty signature vector
-        signature = [0.0] * len(rw_broadcast.value[0])
+        signature = [0.0] * len(random_lines[0][0])
         # For each word in the document
-        for i in range(len(tfidf.indices)):
-            # Get the word index and the TF-IDF value
-            word_index = tfidf.indices[i]
-            tfidf_value = tfidf.values[i]
-            # Get the corresponding random line
-            random_line = rw_broadcast.value[word_index]
+        for tfidf_value, random_line in zip(tfidf_values, random_lines):
             # Add the random line to the signature, scaled by the TF-IDF value
-            signature = [s + value * tfidf_value for s, value in zip(signature, random_line)]
+            signature = [s + value * tfidf_value for s, value in zip(signature, random_line[0])]
         # Convert the signature to a SimHash by taking the sign of each element
-        simhash_bin = [1 if value > 0 else 0 for value in signature[0]]
+        simhash_bin = [1 if value > 0 else 0 for value in signature]
         return doc_index, simhash_bin
 
-    # Apply the SimHash function to each document
-    simhash_rdd = docs.map(lambda x: simhash(*x))
+    # Group the joined RDD by docID
+    grouped_rdd = joined_rdd.groupBy(lambda x: x[1][0][0])
+    # Apply the SimHash function to each group
+    simhash_rdd = grouped_rdd.map(lambda x: simhash(x[0], [value[1][0][1] for value in list(x[1])], [value[1][1] for value in list(x[1])]))
     return simhash_rdd
 
 
@@ -118,7 +118,6 @@ def gather_similar_simhash(spark, simhash, p):
     """
     This function gathers groups of documents that share at least half of their simhash pieces
     """
-    # Broadcast the simhash RDD
     simhash_broadcast = spark.sparkContext.broadcast(simhash.collectAsMap())
 
     def gather(doc_index, pieces):
@@ -136,7 +135,22 @@ def compute_hamming_distance_piece(piece1, piece2):
     """
     This function computes the hamming distance between two int pieces of a simhash
     """
-    hamm = bin(int(piece1) ^ int(piece2)).count('1')
-    return hamm
+    return bin(int(piece1) ^ int(piece2)).count('1')
 
 
+def compute_hamming_distances(spark, simhash, groups):
+    """
+    This function computes the hamming distances between the simhashes
+    """
+    simhash_broadcast = spark.sparkContext.broadcast(simhash.collectAsMap())
+
+    def hamming_distance(doc_index, similar_docs):
+        distance = 0
+        hammings = list()
+        for similar_doc in similar_docs:
+            distance += (compute_hamming_distance_piece(p1, p2)
+                         for p1, p2 in zip(simhash_broadcast.value[doc_index], simhash_broadcast.value[similar_doc]))
+            hammings.append(distance)
+        return doc_index, hammings
+
+    return groups.map(lambda x: hamming_distance(*x))
