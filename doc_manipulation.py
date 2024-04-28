@@ -118,17 +118,22 @@ def gather_similar_simhash(spark, simhash, p):
     """
     This function gathers groups of documents that share at least half of their simhash pieces
     """
-    simhash_broadcast = spark.sparkContext.broadcast(simhash.collectAsMap())
 
-    def gather(doc_index, pieces):
-        similar_docs = list()
-        for succ_index in islice(simhash_broadcast.value, doc_index + 1, None):
-            n_similar = sum(p1 == p2 for p1, p2 in zip(pieces, simhash_broadcast.value[succ_index]))
+    def gather(doc1, doc2):
+        doc_index1, pieces1 = doc1
+        doc_index2, pieces2 = doc2
+        if doc_index1 < doc_index2:
+            n_similar = sum(p1 == p2 for p1, p2 in zip(pieces1, pieces2))
             if n_similar >= p / 2:
-                similar_docs.append(succ_index)
-        return doc_index, similar_docs
+                return doc_index1, doc_index2
 
-    return simhash.map(lambda x: gather(*x))
+    # Use cartesian to get all pairs of documents
+    pairs = simhash.cartesian(simhash)
+    # Use filter to keep only the pairs that share at least half of their simhash pieces
+    similar_pairs = pairs.map(lambda x: gather(*x)).filter(lambda x: x is not None)
+    # Group by the first document index to get a list of similar documents for each document
+    return similar_pairs.groupBy(lambda x: x[0]).map(
+        lambda x: (x[0], sorted([doc_index2 for _, doc_index2 in list(x[1])])))
 
 
 def compute_hamming_distance_piece(piece1, piece2):
