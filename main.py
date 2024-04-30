@@ -29,7 +29,6 @@ def mapper(spark, docs, m, p):
     simhash = dm.compute_simhash(spark, docs, rw)
     comp_time = time.perf_counter() - comp_time
     print('\nsimhash time', comp_time, '\n')
-    print(simhash.take(10))
     comp_time = time.perf_counter()
     simhash_pieces = dm.split_simhash(spark, simhash, p)
     comp_time = time.perf_counter() - comp_time
@@ -40,10 +39,15 @@ def mapper(spark, docs, m, p):
     comp_time = time.perf_counter() - comp_time
     print('\ngather time', comp_time, '\n')
     print(groups.take(10))
-    return simhash_pieces, groups
+
+    def map_func(doc):
+        index, data = doc
+        yield index, [data[0], data[1]]
+
+    return simhash.leftOuterJoin(groups).flatMap(map_func)
 
 
-def reducer(spark, simhash, groups, s):
+def reducer(spark, simhash_groups, s):
     """
     Reduce Phase:
     Input: The 2 sets key-value pairs output by the Map phase.
@@ -51,10 +55,8 @@ def reducer(spark, simhash, groups, s):
     Output: Key-value pairs where the key is the docID and the value is a list of docID of similar documents
     """
     comp_time = time.perf_counter()
-    hamming_distances = dm.compute_hamming_distances(spark, simhash, groups)
+    hamming_distances = dm.compute_hamming_distances(spark, simhash_groups)
     comp_time = time.perf_counter() - comp_time
-    print('\nhamming time', comp_time, '\n')
-    print(hamming_distances.take(10))
 
 
 def spark_main(m=64, p=8, s=0.9):
@@ -62,8 +64,12 @@ def spark_main(m=64, p=8, s=0.9):
     docs = dm.generate_synthetic_doc_list(spark)
     #docs = dm.generate_doc_list(spark)
     print(docs.take(10))
-    simhash, groups = mapper(spark, docs, m, p)
-    reducer(spark, simhash, groups, s)
+    comp_time = time.perf_counter()
+    simhash_groups = mapper(spark, docs, m, p)
+    comp_time = time.perf_counter() - comp_time
+    print('\nmap phase time', comp_time, '\n')
+    print(simhash_groups.take(10))
+    reducer(spark, simhash_groups, s)
 
 
 

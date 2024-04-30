@@ -143,10 +143,8 @@ def compute_hamming_distance_piece(piece1, piece2):
     return bin(int(piece1) ^ int(piece2)).count('1')
 
 
-def compute_hamming_distances(spark, simhash, groups):
+def compute_hamming_distances(spark, simhash_groups):
     """
     This function computes the hamming distances between the simhashes
     """
-    # join the simhash and groups RDDs
-    joined_rdd = simhash.join(groups)
-    return joined_rdd
+    pass
