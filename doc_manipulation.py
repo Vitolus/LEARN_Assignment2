@@ -47,17 +47,12 @@ def compute_tfidf(docs):
     # Compute the number of distinct terms across all documents
     n_terms = docs.select(F.explode(docs.filtered)).distinct().count()
     # Compute the term frequencies
-    docs = (CountVectorizer(inputCol="filtered", outputCol="tf")
-            .fit(docs)
-            .transform(docs)).drop("filtered")
+    docs = (CountVectorizer(inputCol="filtered", outputCol="tf").fit(docs).transform(docs)).drop("filtered")
     # Compute the inverse document frequencies
-    docs = (IDF(inputCol="tf", outputCol="features")
-            .fit(docs)
-            .transform(docs)).drop("tf")
+    docs = (IDF(inputCol="tf", outputCol="features").fit(docs).transform(docs)).drop("tf")
     # Normalize the TF-IDF vectors and return the result as an RDD
-    return (Normalizer(inputCol="features", outputCol="tfidf", p=2.0)
-            .transform(docs).drop("features").rdd.map(
-        lambda row: (row['index'], row['tfidf']))), n_terms  # Normalize the TF-IDF vectors
+    return (Normalizer(inputCol="features", outputCol="tfidf", p=2.0).transform(docs).drop("features").rdd
+            .map(lambda row: (row['index'], row['tfidf']))), n_terms  # map to (docID, tfidf)
 
 
 def compute_rw(spark, n_terms, m):
@@ -66,19 +61,19 @@ def compute_rw(spark, n_terms, m):
     """
     # random lines [n_term, m]
     np.random.seed(0)
-    rw = [(Vectors.dense(x),) for x in np.random.choice([-1, 1], size=(n_terms, m))]
+    rw = [(Vectors.dense(x),) for x in np.random.choice([-1, 1], size=(n_terms, m))]  # random lines [n_term, m]
     rw = spark.sparkContext.parallelize(rw)
-    return rw.zipWithIndex().map(lambda x: (x[1], x[0]))
+    return rw.zipWithIndex().map(lambda x: (x[1], x[0]))  # map to (termID, random_line)
 
 
 def compute_simhash(spark, docs, rw):
     """
     This function computes the simhash of the documents
     """
-    # Explode the docs RDD to multiple rows, each with a wordID
-    exploded_docs = docs.flatMap(lambda x: [(int(wordID), (x[0], x[1][int(wordID)])) for wordID in x[1].indices])
-    # Join the exploded_docs and rw RDDs based on wordID
-    joined_rdd = exploded_docs.join(rw)
+    # Explode the documents to get a (docID, (termID, tfidf_value)) RDD
+    exploded_docs = docs.flatMap(lambda x: ((int(term_id), (x[0], x[1][int(term_id)])) for term_id in x[1].indices))
+    # Join the exploded_docs and rw RDDs based on termID and group by docID
+    grouped_rdd = exploded_docs.join(rw).groupBy(lambda x: x[1][0][0])
 
     def simhash(doc_index, tfidf_values, random_lines):
         # Initialize an empty signature vector
@@ -91,25 +86,23 @@ def compute_simhash(spark, docs, rw):
         simhash_bin = [1 if value > 0 else 0 for value in signature]
         return doc_index, simhash_bin
 
-    # Group the joined RDD by docID
-    grouped_rdd = joined_rdd.groupBy(lambda x: x[1][0][0])
     # Apply the SimHash function to each group
     return grouped_rdd.map(
-        lambda x: simhash(x[0], [value[1][0][1] for value in list(x[1])],[value[1][1] for value in list(x[1])]))
+        lambda x: simhash(x[0], (value[1][0][1] for value in list(x[1])), [value[1][1] for value in list(x[1])]))
 
 
 def split_simhash(spark, simhash, p):
     """
     This function splits the simhash in p pieces
     """
+    # Apply the split_simhash function to each element of the RDD
+    simhash_pieces = simhash.map(lambda x: split(*x))
 
     def split(doc_index, sims):
         # Split the simhash into p pieces
         sim_pieces = [sims[i:i + p] for i in range(0, len(sims), p)]
         return doc_index, sim_pieces
 
-    # Apply the split_simhash function to each element of the RDD
-    simhash_pieces = simhash.map(lambda x: split(*x))
     # Convert each piece to an integer
     return simhash_pieces.map(lambda x: (x[0], [int(''.join(str(bit) for bit in piece), 2) for piece in x[1]]))
 
