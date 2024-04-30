@@ -44,7 +44,7 @@ def mapper(spark, docs, m, p):
         index, data = doc
         yield index, [data[0], data[1]]
 
-    return simhash.leftOuterJoin(groups).flatMap(map_func)
+    return simhash_pieces.leftOuterJoin(groups).flatMap(map_func)
 
 
 def reducer(spark, simhash_groups, s):
