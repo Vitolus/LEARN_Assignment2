@@ -39,7 +39,6 @@ def mapper(spark, docs, m, p):
         doc_id, pieces = doc  # doc is a tuple (doc_id, pieces)
         pieces = np.sort(np.array(pieces))[::-1]  # sort the pieces in descending order
         pieces = pieces[:len(pieces)//2]  # take the first half of the pieces
-        print('\npieces', pieces)
         for piece in pieces:  # for each piece in the first half of the pieces
             yield piece, doc_id  # emit (piece, doc_id)
 
@@ -59,15 +58,12 @@ def reducer(mapped, simhash_pieces, m, s):
     """
     # flip the key-value pairs
     mapped = mapped.map(lambda x: (x[1], x[0]))
-    print('\nmapped', mapped.collect())
     # Join on docID
     joined = mapped.join(simhash_pieces)
-    print('\njoined', joined.collect())
     # Group by piece
     grouped = joined.map(lambda x: (x[1][0], (x[0], x[1][1]))).groupByKey()
 
     def reduce_func(key, values):
-        print('\nkey', key, 'values', list(values))
         for doc_id1, doc1 in values:
             for doc_id2, doc2 in values:
                 doc1 = np.array(doc1)
@@ -75,12 +71,9 @@ def reducer(mapped, simhash_pieces, m, s):
                 if doc_id1 >= doc_id2 or key != max(np.intersect1d(doc1, doc2)):
                     continue
                 shared_pieces = dm.count_shared_pieces(doc1, doc2)
-                print('\nshared_pieces', shared_pieces)
                 if shared_pieces >= len(doc1) // 2:
                     hamming = dm.compute_hamming_distance(doc1, doc2)
-                    print('\nhamming', hamming)
                     similarity = dm.compute_cosine_similarity(hamming, m)
-                    print('\nsimilarity', similarity)
                     if similarity >= s:
                         yield (doc_id1, doc_id2), similarity
 
