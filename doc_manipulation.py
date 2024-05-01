@@ -2,11 +2,9 @@ from faker import Faker
 import numpy as np
 from pyspark.ml.feature import CountVectorizer, IDF, Tokenizer, StopWordsRemover, Normalizer
 from pyspark.sql import functions as F
-from pyspark.sql import Row, Window
+from pyspark.sql import Window
 from pyspark.ml.linalg import Vectors
-from pyspark.sql.types import *
-from operator import add
-from itertools import islice
+import math
 import gc
 
 
@@ -18,12 +16,12 @@ def generate_synthetic_doc_list(spark):
     Faker.seed(0)
     docs = list()
     for _ in range(1):
-        docs.append(fake.sentence(nb_words=15, ext_word_list=['hello', 'dog', 'cat']))
-        docs.append(docs[0])
-        docs.append(docs[0].replace('dog', 'cat', 1))
-        docs.append(docs[0].replace('dog', 'cat', 3))
-        docs.append('the pen is on the dusted table, but the table is not clean')
-        docs.append('the pen is on the dusted floor, but the table is not clean')
+        docs.append(fake.sentence(nb_words=15, ext_word_list=['hello', 'dog', 'cat']))  # 0 doc
+        docs.append(docs[0])  # 1 doc
+        docs.append(docs[0].replace('dog', 'cat', 1))  # 2 doc
+        docs.append(docs[0].replace('dog', 'cat', 3))  # 3 doc
+        docs.append('the pen is on the dusted table, but the table is not clean')  # 4 doc
+        docs.append('the pen is on the dusted floor, but the table is not clean')  # 5 doc
     docs = spark.sparkContext.parallelize(docs)
     return docs.zipWithIndex().map(lambda x: (x[1], x[0]))
 
@@ -66,7 +64,7 @@ def compute_rw(spark, n_terms, m):
     return rw.zipWithIndex().map(lambda x: (x[1], x[0]))  # map to (termID, random_line)
 
 
-def compute_simhash(spark, docs, rw):
+def compute_simhash(docs, rw):
     """
     This function computes the simhash of the documents
     """
@@ -91,7 +89,7 @@ def compute_simhash(spark, docs, rw):
         lambda x: simhash(x[0], (value[1][0][1] for value in list(x[1])), [value[1][1] for value in list(x[1])]))
 
 
-def split_simhash(spark, simhash, p):
+def split_simhash(simhash, p):
     """
     This function splits the simhash in p pieces
     """
@@ -107,37 +105,22 @@ def split_simhash(spark, simhash, p):
     return simhash_pieces.map(lambda x: (x[0], [int(''.join(str(bit) for bit in piece), 2) for piece in x[1]]))
 
 
-def gather_similar_simhash(spark, simhash, p):
+def count_shared_pieces(doc1, doc2):
     """
-    This function gathers groups of documents that share at least half of their simhash pieces
+    This function counts the number of shared pieces between two documents
     """
-
-    def gather(doc1, doc2):
-        doc_index1, pieces1 = doc1
-        doc_index2, pieces2 = doc2
-        if doc_index1 < doc_index2:
-            n_similar = sum(p1 == p2 for p1, p2 in zip(pieces1, pieces2))
-            if n_similar >= p / 2:
-                return doc_index1, doc_index2
-
-    # Use cartesian to get all pairs of documents
-    pairs = simhash.cartesian(simhash)
-    # Use filter to keep only the pairs that share at least half of their simhash pieces
-    similar_pairs = pairs.map(lambda x: gather(*x)).filter(lambda x: x is not None)
-    # Group by the first document index to get a list of similar documents for each document
-    return similar_pairs.groupBy(lambda x: x[0]).map(
-        lambda x: (x[0], sorted([doc_index2 for _, doc_index2 in list(x[1])])))
+    return np.count_nonzero(doc1 == doc2)
 
 
-def compute_hamming_distance_piece(piece1, piece2):
+def compute_hamming_distance(doc1, doc2):
     """
-    This function computes the hamming distance between two int pieces of a simhash
+    This function computes the hamming distance between two documents
     """
-    return bin(int(piece1) ^ int(piece2)).count('1')
+    return np.sum(np.vectorize(lambda x: (bin(x).count('1')))(np.bitwise_xor(doc1, doc2)))
 
 
-def compute_hamming_distances(spark, simhash_groups):
+def compute_cosine_similarity(hamming, m):
     """
-    This function computes the hamming distances between the simhashes
+    This function computes the cosine similarity between two documents
     """
-    pass
+    return math.cos(hamming / m)
