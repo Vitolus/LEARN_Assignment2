@@ -5,7 +5,6 @@ from pyspark.sql import functions as F
 from pyspark.sql import Window
 from pyspark.ml.linalg import Vectors
 import math
-import gc
 
 
 def generate_synthetic_doc_list(spark):
@@ -27,7 +26,7 @@ def generate_synthetic_doc_list(spark):
 
 
 def generate_doc_list(spark):
-    # spark dataframe already parallelized (distributed)
+    # spark dataframe already parallelized
     docs = spark.read.parquet("./data/train-00000-of-00004.parquet").withColumn('index', F.lit(0))  # ./data/*
     return docs.withColumn("index", F.row_number().over(Window.partitionBy('index').orderBy(F.lit(0))) - 1)
 
