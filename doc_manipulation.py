@@ -36,19 +36,18 @@ def compute_tfidf(docs):
     This function computes the TF-IDF of a list of documents
     """
     # Tokenize the documents and remove stop words
-    docs = (StopWordsRemover(inputCol="words", outputCol="filtered")
-            .transform(Tokenizer(inputCol="text", outputCol="words")
-                       .transform(docs.withColumn("text", F.lower(F.regexp_replace(F.col("text"), '[^\w\s]', '')))))
-            ).drop("text", "words")
-    docs.persist()
+    token = (StopWordsRemover(inputCol="words", outputCol="filtered")
+             .transform(Tokenizer(inputCol="text", outputCol="words")
+                        .transform(docs.withColumn("text", F.lower(F.regexp_replace(F.col("text"), '[^\w\s]', '')))))
+             ).drop("text", "words")
     # Compute the number of distinct terms across all documents
-    n_terms = docs.select(F.explode(docs.filtered)).distinct().count()
+    n_terms = token.select(F.explode(token.filtered)).distinct().count()
     # Compute the term frequencies
-    docs = (CountVectorizer(inputCol="filtered", outputCol="tf").fit(docs).transform(docs)).drop("filtered")
+    tf = (CountVectorizer(inputCol="filtered", outputCol="tf").fit(token).transform(token)).drop("filtered")
     # Compute the inverse document frequencies
-    docs = (IDF(inputCol="tf", outputCol="features").fit(docs).transform(docs)).drop("tf")
+    idf = (IDF(inputCol="tf", outputCol="features").fit(tf).transform(tf)).drop("tf")
     # Normalize the TF-IDF vectors and return the result as an RDD
-    return (Normalizer(inputCol="features", outputCol="tfidf", p=2.0).transform(docs).drop("features").rdd
+    return (Normalizer(inputCol="features", outputCol="tfidf", p=2.0).transform(idf).drop("features").rdd
             .map(lambda row: (row['index'], row['tfidf']))), n_terms  # map to (docID, tfidf)
 
 

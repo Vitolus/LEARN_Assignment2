@@ -16,28 +16,21 @@ def mapper(spark, docs, m, p):
     the next phase.
     """
     comp_time = time.perf_counter()
-    docs, n_terms = dm.compute_tfidf(docs.toDF(['index', 'text']))
-    # docs, n_terms = dm.compute_tfidf(docs)
-    docs.persist()
+    #docs, n_terms = dm.compute_tfidf(docs.toDF(['index', 'text']))
+    docs, n_terms = dm.compute_tfidf(docs)
     comp_time = time.perf_counter() - comp_time
     print('\ntfidf time', comp_time, '\n')
     print(docs.take(10))
     comp_time = time.perf_counter()
     rw = dm.compute_rw(spark, n_terms, m)
-    rw.persist()
     comp_time = time.perf_counter() - comp_time
     print('\nrw time', comp_time, '\n')
     comp_time = time.perf_counter()
     simhash = dm.compute_simhash(docs, rw)
-    rw.unpersist()
-    docs.unpersist()
-    simhash.persist()
     comp_time = time.perf_counter() - comp_time
     print('\nsimhash time', comp_time, '\n')
     comp_time = time.perf_counter()
     simhash_pieces = dm.split_simhash(simhash, p)
-    simhash.unpersist()
-    simhash_pieces.persist()
     comp_time = time.perf_counter() - comp_time
     print('\nsplit time', comp_time, '\n')
     print(simhash_pieces.take(10))
@@ -65,14 +58,10 @@ def reducer(mapped, simhash_pieces, m, s):
     """
     # flip the key-value pairs
     mapped = mapped.map(lambda x: (x[1], x[0]))
-    mapped.persist()
     # Join on docID
     joined = mapped.join(simhash_pieces)
-    simhash_pieces.unpersist()
-    mapped.unpersist()
     # Group by piece
     grouped = joined.map(lambda x: (x[1][0], (x[0], x[1][1]))).groupByKey()
-    joined.unpersist()
 
     def reduce_func(key, values):
         for doc_id1, doc1 in values:
@@ -93,10 +82,10 @@ def reducer(mapped, simhash_pieces, m, s):
 
 def spark_main(m=64, p=8, s=0.95):
     spark = SparkSession.builder.appName('SimHash').getOrCreate()
-    docs = dm.generate_synthetic_doc_list(spark)
-    print(docs.take(10))
-    # docs = dm.generate_doc_list(spark)
-    # docs.show(10)
+    # docs = dm.generate_synthetic_doc_list(spark)
+    # print(docs.take(10))
+    docs = dm.generate_doc_list(spark)
+    docs.show(10)
     comp_time = time.perf_counter()
     mapped, simhash_pieces = mapper(spark, docs, m, p)
     comp_time = time.perf_counter() - comp_time
@@ -104,10 +93,10 @@ def spark_main(m=64, p=8, s=0.95):
     print(mapped.take(10))
     comp_time = time.perf_counter()
     reduced = reducer(mapped, simhash_pieces, m, s)
-    reduced.persist()
     comp_time = time.perf_counter() - comp_time
     print('\nreduce phase time', comp_time, '\n')
     print(reduced.take(10))
+    print('\nnumber of similar pairs', reduced.count())
     spark.stop()
 
 
