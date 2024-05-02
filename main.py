@@ -35,7 +35,9 @@ def mapper(spark, docs, m, p):
     def map_func(doc):
         doc_id, pieces = doc  # doc is a tuple (doc_id, pieces)
         pieces = np.sort(pieces)[::-1]  # sort the pieces in descending order
-        pieces = pieces[:len(pieces)//2]  # take the first half of the pieces
+        # take the first half of the pieces to reduce the number of copies across nodes,
+        # at the cost of some accuracy in the number of similar pairs
+        pieces = pieces[:len(pieces)//2]
         for piece in pieces:  # for each piece in the first half of the pieces
             yield piece, doc_id
 
