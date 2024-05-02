@@ -27,7 +27,8 @@ def generate_synthetic_doc_list(spark):
 
 def generate_doc_list(spark):
     # spark dataframe already parallelized
-    docs = spark.read.parquet("./data/train-00000-of-00004.parquet").withColumn('index', F.lit(0))  # ./data/*
+    docs = (spark.read.parquet("./data/train-00000-of-00004.parquet").withColumn('index', F.lit(0))
+            .limit(10000))  # ./data/*
     return docs.withColumn("index", F.row_number().over(Window.partitionBy('index').orderBy(F.lit(0))) - 1)
 
 
@@ -55,11 +56,11 @@ def compute_rw(spark, n_terms, m):
     """
     This function computes the random lines
     """
-    # random lines [n_term, m]
     np.random.seed(0)
-    rw = [(Vectors.dense(x),) for x in np.random.choice([-1, 1], size=(n_terms, m))]  # random lines [n_term, m]
-    rw = spark.sparkContext.parallelize(rw)
-    return rw.zipWithIndex().map(lambda x: (x[1], x[0]))  # map to (termID, random_line)
+    # Generate random lines of -1 and 1 with shape (n_terms, m)
+    rw = spark.sparkContext.parallelize(np.random.choice([-1, 1], size=(n_terms, m)))
+    # Convert to dense vectors and zip with index to get (wordID, random_line) pairs
+    return rw.map(lambda x: (Vectors.dense(x),)).zipWithIndex().map(lambda x: (x[1], x[0]))
 
 
 def compute_simhash(docs, rw):
@@ -72,18 +73,16 @@ def compute_simhash(docs, rw):
     grouped_rdd = exploded_docs.join(rw).groupBy(lambda x: x[1][0][0])
 
     def simhash(doc_index, tfidf_values, random_lines):
-        # Initialize an empty signature vector
-        signature = [0.0] * len(random_lines[0][0])
-        # For each word in the document
-        for tfidf_value, random_line in zip(tfidf_values, random_lines):
+        signature = np.zeros(len(random_lines[0][0]))  # Initialize an empty signature vector
+        for tfidf_value, random_line in zip(tfidf_values, random_lines):  # For each word in the document
             # Add the random line to the signature, scaled by the TF-IDF value
-            signature = [s + value * tfidf_value for s, value in zip(signature, random_line[0])]
+            signature += np.array(random_line[0]) * tfidf_value
         # Convert the signature to a SimHash by taking the sign of each element
         simhash_bin = [1 if value > 0 else 0 for value in signature]
-        return doc_index, simhash_bin
+        yield doc_index, simhash_bin
 
     # Apply the SimHash function to each group
-    return grouped_rdd.map(
+    return grouped_rdd.flatMap(
         lambda x: simhash(x[0], (value[1][0][1] for value in list(x[1])), [value[1][1] for value in list(x[1])]))
 
 
@@ -91,16 +90,14 @@ def split_simhash(simhash, p):
     """
     This function splits the simhash in p pieces
     """
-    # Apply the split_simhash function to each element of the RDD
-    simhash_pieces = simhash.map(lambda x: split(*x))
-
     def split(doc_index, sims):
         # Split the simhash into p pieces
         sim_pieces = [sims[i:i + p] for i in range(0, len(sims), p)]
-        return doc_index, sim_pieces
+        # Convert each piece to an integer
+        yield doc_index, [int(''.join(str(bit) for bit in piece), 2) for piece in sim_pieces]
 
-    # Convert each piece to an integer
-    return simhash_pieces.map(lambda x: (x[0], [int(''.join(str(bit) for bit in piece), 2) for piece in x[1]]))
+    # Apply the split_simhash function to each element of the RDD
+    return simhash.flatMap(lambda x: split(*x))
 
 
 def count_shared_pieces(doc1, doc2):
@@ -121,4 +118,4 @@ def compute_cosine_similarity(hamming, m):
     """
     This function computes the cosine similarity between two documents
     """
-    return math.cos(hamming / m)
+    return math.cos(hamming / m * math.pi / 2)

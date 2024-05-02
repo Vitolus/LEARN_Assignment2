@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 import os
+import sys
 import doc_manipulation as dm
 import time
 import numpy as np
@@ -16,33 +17,29 @@ def mapper(spark, docs, m, p):
     the next phase.
     """
     comp_time = time.perf_counter()
-    #docs, n_terms = dm.compute_tfidf(docs.toDF(['index', 'text']))
+    # docs, n_terms = dm.compute_tfidf(docs.toDF(['index', 'text']))
     docs, n_terms = dm.compute_tfidf(docs)
-    comp_time = time.perf_counter() - comp_time
-    print('\ntfidf time', comp_time, '\n')
+    print('\ntfidf time', time.perf_counter() - comp_time, '\n')
     print(docs.take(10))
     comp_time = time.perf_counter()
     rw = dm.compute_rw(spark, n_terms, m)
-    comp_time = time.perf_counter() - comp_time
-    print('\nrw time', comp_time, '\n')
+    print('\nrw time', time.perf_counter() - comp_time, '\n')
     comp_time = time.perf_counter()
     simhash = dm.compute_simhash(docs, rw)
-    comp_time = time.perf_counter() - comp_time
-    print('\nsimhash time', comp_time, '\n')
+    print('\nsimhash time', time.perf_counter() - comp_time, '\n')
     comp_time = time.perf_counter()
     simhash_pieces = dm.split_simhash(simhash, p)
-    comp_time = time.perf_counter() - comp_time
-    print('\nsplit time', comp_time, '\n')
+    print('\nsplit time', time.perf_counter() - comp_time, '\n')
     print(simhash_pieces.take(10))
 
     def map_func(doc):
         doc_id, pieces = doc  # doc is a tuple (doc_id, pieces)
-        pieces = np.sort(np.array(pieces))[::-1]  # sort the pieces in descending order
+        pieces = np.sort(pieces)[::-1]  # sort the pieces in descending order
         pieces = pieces[:len(pieces)//2]  # take the first half of the pieces
         for piece in pieces:  # for each piece in the first half of the pieces
-            yield piece, doc_id  # emit (piece, doc_id)
+            yield piece, doc_id
 
-    return simhash_pieces.flatMap(lambda x: map_func(x)), simhash_pieces
+    return simhash_pieces.flatMap(map_func), simhash_pieces  # return the mapped RDD and the simhash pieces
 
 
 def reducer(mapped, simhash_pieces, m, s):
@@ -56,43 +53,49 @@ def reducer(mapped, simhash_pieces, m, s):
     Emit Similar Documents: Finally, for each document, emit the list of documents that are considered similar based on
     the computed cosine similarity and Hamming distance.
     """
-    # flip the key-value pairs
-    mapped = mapped.map(lambda x: (x[1], x[0]))
-    # Join on docID
-    joined = mapped.join(simhash_pieces)
-    # Group by piece
-    grouped = joined.map(lambda x: (x[1][0], (x[0], x[1][1]))).groupByKey()
+    mapped = mapped.map(lambda x: (x[1], x[0]))  # flip the key-value pairs
+    joined = mapped.join(simhash_pieces)  # Join on docID
+    # Group by piece and sort by docID in each group
+    grouped = joined.map(lambda x: (x[1][0], (x[0], x[1][1]))).groupByKey().mapValues(list)
 
     def reduce_func(key, values):
-        for doc_id1, doc1 in values:
-            for doc_id2, doc2 in values:
-                doc1 = np.array(doc1)
-                doc2 = np.array(doc2)
-                if doc_id1 >= doc_id2 or key != max(np.intersect1d(doc1, doc2)):
-                    continue
+        values = sorted(values, key=lambda x: x[0])  # sort the values by doc_id
+        for i in range(len(values)):  # for each document
+            doc_id1, doc1 = values[i]  # get the document id and the document
+            doc1 = np.array(doc1)  # convert the document to a numpy array
+            for j in range(i + 1, len(values)):  # for each other document
+                doc_id2, doc2 = values[j]  # get the document id and the document
+                doc2 = np.array(doc2)  # convert the document to a numpy array
+                # if the key is not the maximum of the intersection of doc1 and doc2
+                if key != max(np.intersect1d(doc1, doc2)):
+                    continue  # skip this iteration
+                # count the number of shared pieces between doc1 and doc2
                 shared_pieces = dm.count_shared_pieces(doc1, doc2)
+                # if the number of shared pieces is greater than or equal to half of the length of doc1
                 if shared_pieces >= len(doc1) // 2:
+                    # compute the hamming distance between doc1 and doc2
                     hamming = dm.compute_hamming_distance(doc1, doc2)
+                    # compute the cosine similarity between doc1 and doc2
                     similarity = dm.compute_cosine_similarity(hamming, m)
-                    if similarity >= s:
+                    if similarity >= s:  # if the cosine similarity is greater than or equal to the threshold s
                         yield (doc_id1, doc_id2), similarity
 
-    return grouped.flatMap(lambda x: reduce_func(x[0], x[1]))
+    return grouped.flatMap(lambda x: reduce_func(x[0], x[1]))  # return the reduced RDD
 
 
 def spark_main(m=64, p=8, s=0.95):
-    spark = SparkSession.builder.appName('SimHash').getOrCreate()
-    # docs = dm.generate_synthetic_doc_list(spark)
+    spark = SparkSession.builder.appName('SimHash').getOrCreate()  # create a Spark session
+    # docs = dm.generate_synthetic_doc_list(spark)  # generate a list of synthetic documents
     # print(docs.take(10))
-    docs = dm.generate_doc_list(spark)
+    docs = dm.generate_doc_list(spark)  # generate a list of documents
     docs.show(10)
     comp_time = time.perf_counter()
-    mapped, simhash_pieces = mapper(spark, docs, m, p)
+    mapped, simhash_pieces = mapper(spark, docs, m, p)  # map phase
     comp_time = time.perf_counter() - comp_time
     print('\nmap phase time', comp_time, '\n')
     print(mapped.take(10))
     comp_time = time.perf_counter()
-    reduced = reducer(mapped, simhash_pieces, m, s)
+    reduced = reducer(mapped, simhash_pieces, m, s)  # reduce phase
     comp_time = time.perf_counter() - comp_time
     print('\nreduce phase time', comp_time, '\n')
     print(reduced.take(10))
@@ -108,5 +111,11 @@ if __name__ == "__main__":
         print(f"PySpark is using this Python interpreter: {pyspark_python}")
     else:
         print("PySpark is using the system's default Python interpreter.")
-    spark_main()
-
+    if len(sys.argv) == 1:  # if no arguments are provided
+        spark_main()  # call the main function with default arguments
+    elif len(sys.argv) == 4:  # if three arguments are provided
+        # call the main function with the provided arguments
+        spark_main(int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3]))
+    else:  # if an invalid number of arguments is provided
+        print("Usage: spark-submit main.py <m> <p> <s>")
+        sys.exit(1)
