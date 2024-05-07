@@ -1,5 +1,5 @@
-from dotenv import load_dotenv
-import os
+# from dotenv import load_dotenv
+# import os
 import sys
 import doc_manipulation as dm
 import time
@@ -92,7 +92,7 @@ def spark_main(path="/home/claudio.lucchese/datasets/enron/*", m=64, p=8, s=1.0)
     #print(docs.take(10))
 
     # document generation on real data
-    docs = dm.generate_doc_list(spark, path).limit(10000)  # generate a list of documents
+    docs = dm.generate_doc_list(spark, path)  # generate a list of documents
     docs.show(10)
 
     comp_time = time.perf_counter()
@@ -110,18 +110,18 @@ def spark_main(path="/home/claudio.lucchese/datasets/enron/*", m=64, p=8, s=1.0)
 
 
 if __name__ == "__main__":
-    load_dotenv()
-    os.environ["PYSPARK_PYTHON"] = os.getenv("PYSPARK_PYTHON")
-    pyspark_python = os.environ.get("PYSPARK_PYTHON", None)
-    if pyspark_python:
-        print(f"PySpark is using this Python interpreter: {pyspark_python}")
-    else:
-        print("PySpark is using the system's default Python interpreter.")
+    # load_dotenv()
+    # os.environ["PYSPARK_PYTHON"] = os.getenv("PYSPARK_PYTHON")
+    # pyspark_python = os.environ.get("PYSPARK_PYTHON", None)
+    # if pyspark_python:
+    #     print(f"PySpark is using this Python interpreter: {pyspark_python}")
+    # else:
+    #     print("PySpark is using the system's default Python interpreter.")
 
     if len(sys.argv) == 1:  # if no arguments are provided
         spark_main()  # call the main function with default arguments
     elif len(sys.argv) == 2:  # if 1 argument is provided
-        # call the main function with onlt the path argument
+        # call the main function with only the path argument
         spark_main(sys.argv[1])
     elif len(sys.argv) == 5:  # if 4 arguments are provided
         # call the main function with all the arguments

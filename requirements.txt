@@ -1,5 +1,3 @@
-Faker
 scikit-learn
 numpy
 pyspark
-pyspark-stubs
