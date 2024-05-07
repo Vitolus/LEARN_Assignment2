@@ -1,5 +1,5 @@
-#from dotenv import load_dotenv
-#import os
+from dotenv import load_dotenv
+import os
 import sys
 import doc_manipulation as dm
 import time
@@ -35,7 +35,7 @@ def mapper(spark, docs, m, p):
         pieces = np.sort(pieces)  # sort the pieces in ascending order
         # take the first half of the pieces to reduce the number of copies across nodes,
         # at the cost of some accuracy in the number of similar pairs
-        pieces = pieces[:len(pieces)//2]
+        pieces = pieces[:len(pieces) // 2]
         for piece in pieces:
             yield piece, doc_id
 
@@ -75,13 +75,12 @@ def reducer(mapped, simhash_pieces, m, s):
                 if shared_pieces >= len(doc1) // 2:
                     # compute the hamming distance between doc1 and doc2
                     hamming = dm.compute_hamming_distance(doc1, doc2)
-                    # if the hamming distance is less than or equal to s bits
-                    if hamming <= m * s:
+                    # if the hamming distance is less than or equal to s bits and greater than 0 to exclude the pair of
+                    # documents that are equal
+                    if 0 < hamming <= m * s:
                         # compute the cosine similarity between doc1 and doc2
                         similarity = dm.compute_cosine_similarity(hamming, m)
-                        # exclude the pair of documents that are euqal
-                        if similarity < 1.0:
-                            yield (doc_id1, doc_id2), similarity
+                        yield (doc_id1, doc_id2), similarity
 
     return grouped.flatMap(lambda x: reduce_func(x[0], x[1]))  # return the reduced RDD
 
@@ -90,24 +89,20 @@ def spark_main(path="/home/claudio.lucchese/datasets/enron/*", m=64, p=8, s=1.0)
     spark = SparkSession.builder.appName('SimHash').getOrCreate()  # create a Spark session
     # document generation for testing
     #docs = dm.generate_synthetic_doc_list(spark).toDF(['index', 'text'])
-    #docs.persist()
     #print(docs.take(10))
 
     # document generation on real data
     docs = dm.generate_doc_list(spark, path).limit(10000)  # generate a list of documents
-    #docs.persist()
     docs.show(10)
 
     comp_time = time.perf_counter()
     mapped, simhash_pieces = mapper(spark, docs, m, p)  # map phase
-    #docs.unpersist()
     comp_time = time.perf_counter() - comp_time
     print('\nmap phase time', comp_time, '\n')
     print(mapped.take(10))
     comp_time = time.perf_counter()
     reduced = reducer(mapped, simhash_pieces, m, s)  # reduce phase
     comp_time = time.perf_counter() - comp_time
-    #reduced.persist()
     print('\nreduce phase time', comp_time, '\n')
     print(reduced.take(10))
     print('\nnumber of similar pairs', reduced.count())
@@ -115,13 +110,13 @@ def spark_main(path="/home/claudio.lucchese/datasets/enron/*", m=64, p=8, s=1.0)
 
 
 if __name__ == "__main__":
-    #load_dotenv()
-    #os.environ["PYSPARK_PYTHON"] = os.getenv("PYSPARK_PYTHON")
-    #pyspark_python = os.environ.get("PYSPARK_PYTHON", None)
-    #if pyspark_python:
-    #    print(f"PySpark is using this Python interpreter: {pyspark_python}")
-    #else:
-    #    print("PySpark is using the system's default Python interpreter.")
+    load_dotenv()
+    os.environ["PYSPARK_PYTHON"] = os.getenv("PYSPARK_PYTHON")
+    pyspark_python = os.environ.get("PYSPARK_PYTHON", None)
+    if pyspark_python:
+        print(f"PySpark is using this Python interpreter: {pyspark_python}")
+    else:
+        print("PySpark is using the system's default Python interpreter.")
 
     if len(sys.argv) == 1:  # if no arguments are provided
         spark_main()  # call the main function with default arguments
