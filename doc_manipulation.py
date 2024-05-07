@@ -25,10 +25,8 @@ def generate_synthetic_doc_list(spark):
     return docs.zipWithIndex().map(lambda x: (x[1], x[0]))
 
 
-def generate_doc_list(spark):
-    # spark dataframe already parallelized
-    docs = (spark.read.parquet("./data/train-00000-of-00004.parquet").withColumn('index', F.lit(0))
-            .limit(10000))  # ./data/*
+def generate_doc_list(spark, path):
+    docs = spark.read.parquet(path).withColumn('index', F.lit(0))
     return docs.withColumn("index", F.row_number().over(Window.partitionBy('index').orderBy(F.lit(0))) - 1)
 
 
