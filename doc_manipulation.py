@@ -1,4 +1,3 @@
-#from faker import Faker
 import numpy as np
 from pyspark.ml.feature import CountVectorizer, IDF, Tokenizer, StopWordsRemover, Normalizer
 from pyspark.sql import functions as F
@@ -7,26 +6,12 @@ from pyspark.ml.linalg import Vectors
 import math
 
 
-# def generate_synthetic_doc_list(spark):
-#     """
-#     This function generates synthetic documents with faker
-#     """
-#     fake = Faker()
-#     Faker.seed(0)
-#     docs = list()
-#     for _ in range(1):
-#         docs.append(fake.sentence(nb_words=15, ext_word_list=['hello', 'dog', 'cat']))  # 0 doc
-#         docs.append(docs[0])  # 1 doc
-#         docs.append(docs[0].replace('dog', 'cat', 1))  # 2 doc
-#         docs.append(docs[0].replace('dog', 'cat', 3))  # 3 doc
-#         docs.append('the pen is on the dusted table, but the table is not clean')  # 4 doc
-#         docs.append('the pen is on the dusted floor, but the table is not clean')  # 5 doc
-#     docs = spark.sparkContext.parallelize(docs)
-#     return docs.zipWithIndex().map(lambda x: (x[1], x[0]))
-
-
-def generate_doc_list(spark, path):
-    docs = spark.read.parquet(path).withColumn('index', F.lit(0))
+def generate_doc_list(spark, type, path):
+    if type == 'parquet':
+        docs = spark.read.parquet(path).withColumn('index', F.lit(0))
+    elif type == 'csv':
+        docs = spark.read.csv(path, header=True).withColumn('index', F.lit(0))
+        docs = docs.select("summary").rdd.flatMap(lambda x: x).withColumn('index', F.lit(0))
     return docs.withColumn("index", F.row_number().over(Window.partitionBy('index').orderBy(F.lit(0))) - 1)
 
 

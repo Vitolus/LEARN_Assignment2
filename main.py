@@ -17,13 +17,13 @@ def mapper(spark, docs, m, p):
     the next phase.
     """
     comp_time = time.perf_counter()
-    docs, n_terms = dm.compute_tfidf(docs)
+    tfidf, n_terms = dm.compute_tfidf(docs)
     print('\ntfidf time', time.perf_counter() - comp_time, '\n')
     comp_time = time.perf_counter()
     rw = dm.compute_rw(spark, n_terms, m)
     print('\nrw time', time.perf_counter() - comp_time, '\n')
     comp_time = time.perf_counter()
-    simhash = dm.compute_simhash(docs, rw)
+    simhash = dm.compute_simhash(tfidf, rw)
     print('\nsimhash time', time.perf_counter() - comp_time, '\n')
     comp_time = time.perf_counter()
     simhash_pieces = dm.split_simhash(simhash, p)
@@ -85,26 +85,19 @@ def reducer(mapped, simhash_pieces, m, s):
     return grouped.flatMap(lambda x: reduce_func(x[0], x[1]))  # return the reduced RDD
 
 
-def spark_main(path="/home/claudio.lucchese/datasets/enron/*", m=64, p=8, s=1.0):
+def spark_main(type="parquet", path="./data/emails/*", m=64, p=8, s=1.0):
     spark = SparkSession.builder.appName('SimHash').getOrCreate()  # create a Spark session
-    # document generation for testing
-    #docs = dm.generate_synthetic_doc_list(spark).toDF(['index', 'text'])
-    #print(docs.take(10))
-
-    # document generation on real data
-    docs = dm.generate_doc_list(spark, path)  # generate a list of documents
+    docs = dm.generate_doc_list(spark, type, path).limit(10000)  # generate a list of documents
     docs.show(10)
-
     comp_time = time.perf_counter()
     mapped, simhash_pieces = mapper(spark, docs, m, p)  # map phase
-    comp_time = time.perf_counter() - comp_time
-    print('\nmap phase time', comp_time, '\n')
     print(mapped.take(10))
+    print('\nmap phase time', time.perf_counter() - comp_time, '\n')
     comp_time = time.perf_counter()
     reduced = reducer(mapped, simhash_pieces, m, s)  # reduce phase
-    comp_time = time.perf_counter() - comp_time
-    print('\nreduce phase time', comp_time, '\n')
+    reduced.persist()
     print(reduced.take(10))
+    print('\nreduce phase time', time.perf_counter() - comp_time, '\n')
     print('\nnumber of similar pairs', reduced.count())
     spark.stop()
 
@@ -118,14 +111,12 @@ if __name__ == "__main__":
     # else:
     #     print("PySpark is using the system's default Python interpreter.")
 
-    if len(sys.argv) == 1:  # if no arguments are provided
-        spark_main()  # call the main function with default arguments
-    elif len(sys.argv) == 2:  # if 1 argument is provided
-        # call the main function with only the path argument
-        spark_main(sys.argv[1])
-    elif len(sys.argv) == 5:  # if 4 arguments are provided
-        # call the main function with all the arguments
-        spark_main(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), float(sys.argv[4]))
-    else:  # if an invalid number of arguments is provided
-        print("Usage: spark-submit main.py <path> [<m> <p> <s>]")
+    if len(sys.argv) == 1:
+        spark_main()
+    elif len(sys.argv) == 3:
+        spark_main(sys.argv[1], sys.argv[2])
+    elif len(sys.argv) == 6:
+        spark_main(sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), float(sys.argv[5]))
+    else:
+        print("Usage: spark-submit main.py <type of file> <path> [<m> <p> <s>]")
         sys.exit(1)
