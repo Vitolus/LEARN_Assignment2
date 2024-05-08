@@ -1,10 +1,10 @@
-# from dotenv import load_dotenv
-# import os
 import sys
 import doc_manipulation as dm
 import time
 import numpy as np
 from pyspark.sql import SparkSession
+# from dotenv import load_dotenv
+# import os
 
 
 def mapper(spark, docs, m, p):
@@ -18,6 +18,7 @@ def mapper(spark, docs, m, p):
     """
     comp_time = time.perf_counter()
     tfidf, n_terms = dm.compute_tfidf(docs)
+    docs.unpersist()
     print('\ntfidf time', time.perf_counter() - comp_time, '\n')
     comp_time = time.perf_counter()
     rw = dm.compute_rw(spark, n_terms, m)
@@ -88,6 +89,7 @@ def reducer(mapped, simhash_pieces, m, s):
 def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=1.0):
     spark = SparkSession.builder.appName('SimHash').getOrCreate()  # create a Spark session
     docs = dm.generate_doc_list(spark, ext, path).limit(10000)  # generate a list of documents
+    docs.persist()
     docs.show(10)
     comp_time = time.perf_counter()
     mapped, simhash_pieces = mapper(spark, docs, m, p)  # map phase
