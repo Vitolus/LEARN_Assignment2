@@ -52,8 +52,8 @@ def reducer(mapped, simhash_pieces, m, s):
     Emit Similar Documents: Finally, for each document, emit the list of documents that are considered similar based on
     the computed cosine similarity and Hamming distance.
     """
-    mapped = mapped.map(lambda x: (x[1], x[0]))  # flip the key-value pairs
-    joined = mapped.join(simhash_pieces)  # Join on docID
+    flipped = mapped.map(lambda x: (x[1], x[0]))  # flip the key-value pairs
+    joined = flipped.join(simhash_pieces)  # Join on docID
     # Group by piece and sort by docID in each group
     grouped = joined.map(lambda x: (x[1][0], (x[0], x[1][1]))).groupByKey().mapValues(list)
 
@@ -87,7 +87,7 @@ def reducer(mapped, simhash_pieces, m, s):
 
 def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=1.0):
     spark = SparkSession.builder.appName('SimHash').getOrCreate()  # create a Spark session
-    docs = dm.generate_doc_list(spark, type, path).limit(10000)  # generate a list of documents
+    docs = dm.generate_doc_list(spark, ext, path).limit(10000)  # generate a list of documents
     docs.show(10)
     comp_time = time.perf_counter()
     mapped, simhash_pieces = mapper(spark, docs, m, p)  # map phase
