@@ -1,7 +1,6 @@
 import numpy as np
 from pyspark.ml.feature import CountVectorizer, IDF, Tokenizer, StopWordsRemover, Normalizer
 from pyspark.sql import functions as F
-from pyspark.sql import Window
 from pyspark.ml.linalg import Vectors
 import math
 import sys
@@ -10,15 +9,15 @@ import sys
 def generate_doc_list(spark, ext, path):
     docs = None
     if ext == 'parquet':
-        docs = spark.read.parquet(path).withColumn('index', F.lit(0))
+        docs = spark.read.parquet(path)
     elif ext == 'csv':
-        docs = spark.read.csv(path, header=True).withColumn('index', F.lit(0))
-        docs = docs.select("summary").rdd.flatMap(lambda x: x).withColumn('index', F.lit(0))
+        docs = spark.read.csv(path, header=True)
+        docs = docs.select("summary").rdd.flatMap(lambda x: x)
     else:
         print('Invalid extension')
         spark.stop()
         sys.exit(1)
-    return docs.withColumn("index", F.row_number().over(Window.partitionBy('index').orderBy(F.lit(0))) - 1)
+    return docs.withColumn("index", F.monotonically_increasing_id())
 
 
 def compute_tfidf(docs):
