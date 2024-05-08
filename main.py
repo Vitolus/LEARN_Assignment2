@@ -3,8 +3,8 @@ import doc_manipulation as dm
 import time
 import numpy as np
 from pyspark.sql import SparkSession
-# from dotenv import load_dotenv
-# import os
+from dotenv import load_dotenv
+import os
 
 
 def mapper(spark, docs, m, p):
@@ -78,18 +78,23 @@ def reducer(mapped, simhash_pieces, m, s):
                     hamming = dm.compute_hamming_distance(doc1, doc2)
                     # if the hamming distance is less than or equal to s bits and greater than 0 to exclude the pair of
                     # documents that are equal
-                    if 0 < hamming <= m * s:
+                    if hamming > 0:
                         # compute the cosine similarity between doc1 and doc2
                         similarity = dm.compute_cosine_similarity(hamming, m)
-                        yield (doc_id1, doc_id2), similarity
+                        if similarity >= s:
+                            yield (doc_id1, doc_id2), similarity
 
     return grouped.flatMap(lambda x: reduce_func(x[0], x[1]))  # return the reduced RDD
 
 
-def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=1.0):
+def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=0.9):
     spark = SparkSession.builder.appName('SimHash').getOrCreate()  # create a Spark session
     docs = dm.generate_doc_list(spark, ext, path).limit(10000)  # generate a list of documents
     docs.persist()
+    print('\nnumber of documents:', docs.count())
+    print('length of the signature:', m, 'bits')
+    print('length of the pieces:', p, 'bits')
+    print('similarity threshold:', s * 100, '%\n')
     docs.show(10)
     comp_time = time.perf_counter()
     mapped, simhash_pieces = mapper(spark, docs, m, p)  # map phase
@@ -105,13 +110,13 @@ def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=1.0):
 
 
 if __name__ == "__main__":
-    # load_dotenv()
-    # os.environ["PYSPARK_PYTHON"] = os.getenv("PYSPARK_PYTHON")
-    # pyspark_python = os.environ.get("PYSPARK_PYTHON", None)
-    # if pyspark_python:
-    #     print(f"PySpark is using this Python interpreter: {pyspark_python}")
-    # else:
-    #     print("PySpark is using the system's default Python interpreter.")
+    load_dotenv()
+    os.environ["PYSPARK_PYTHON"] = os.getenv("PYSPARK_PYTHON")
+    pyspark_python = os.environ.get("PYSPARK_PYTHON", None)
+    if pyspark_python:
+        print(f"PySpark is using this Python interpreter: {pyspark_python}")
+    else:
+        print("PySpark is using the system's default Python interpreter.")
 
     if len(sys.argv) == 1:
         spark_main()
