@@ -85,7 +85,7 @@ def reducer(mapped, simhash_pieces, m, s):
     return grouped.flatMap(lambda x: reduce_func(x[0], x[1]))  # return the reduced RDD
 
 
-def spark_main(type="parquet", path="./data/emails/*", m=64, p=8, s=1.0):
+def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=1.0):
     spark = SparkSession.builder.appName('SimHash').getOrCreate()  # create a Spark session
     docs = dm.generate_doc_list(spark, type, path).limit(10000)  # generate a list of documents
     docs.show(10)
@@ -118,5 +118,5 @@ if __name__ == "__main__":
     elif len(sys.argv) == 6:
         spark_main(sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), float(sys.argv[5]))
     else:
-        print("Usage: spark-submit main.py <type of file> <path> [<m> <p> <s>]")
+        print("Usage: spark-submit main.py <extension of file> <path> [<m> <p> <s>]")
         sys.exit(1)
