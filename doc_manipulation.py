@@ -45,7 +45,6 @@ def compute_rw(spark, n_terms, m):
     """
     This function computes the random lines
     """
-    np.random.seed(0)
     # Generate random lines of -1 and 1 with shape (n_terms, m)
     rw = spark.sparkContext.parallelize(np.random.choice([-1, 1], size=(n_terms, m)))
     # Convert to dense vectors and zip with index to get (wordID, random_line) pairs
