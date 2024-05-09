@@ -27,12 +27,11 @@ def mapper(spark, docs, m, p):
     simhash = dm.compute_simhash(tfidf, rw)
     print('\nsimhash time', time.perf_counter() - comp_time, '\n')
     comp_time = time.perf_counter()
-    simhash_pieces = dm.split_simhash(simhash, p)
+    simhash_pieces = dm.split_simhash(simhash, m // p)
     print('\nsplit time', time.perf_counter() - comp_time, '\n')
-    print(simhash_pieces.take(10))
 
     def map_func(doc):
-        doc_id, pieces = doc  # doc is a tuple (doc_id, pieces)
+        doc_id, pieces = doc
         pieces = np.sort(pieces)  # sort the pieces in ascending order
         # take the first half of the pieces to reduce the number of copies across nodes,
         # at the cost of some accuracy in the number of similar pairs
@@ -70,32 +69,23 @@ def reducer(mapped, simhash_pieces, m, s):
                 # guarantees that two documents are only compared once
                 if key != min(np.intersect1d(doc1, doc2)):
                     continue
-                # count the number of shared pieces between doc1 and doc2
                 shared_pieces = dm.count_shared_pieces(doc1, doc2)
-                # if the number of shared pieces is greater than or equal to half of the length of doc1
-                if shared_pieces >= len(doc1) // 2:
-                    # compute the hamming distance between doc1 and doc2
+                if len(doc1) // 2 <= shared_pieces < len(doc1):
                     hamming = dm.compute_hamming_distance(doc1, doc2)
-                    # if the hamming distance is less than or equal to s bits and greater than 0 to exclude the pair of
-                    # documents that are equal
-                    if hamming > 0:
-                        # compute the cosine similarity between doc1 and doc2
+                    if hamming <= s:
                         similarity = dm.compute_cosine_similarity(hamming, m)
-                        if similarity >= s:
-                            yield (doc_id1, doc_id2), similarity
+                        yield (doc_id1, doc_id2), similarity
 
     return grouped.flatMap(lambda x: reduce_func(x[0], x[1]))  # return the reduced RDD
 
 
-def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=0.9):
+def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=5):
     spark = SparkSession.builder.appName('SimHash').getOrCreate()  # create a Spark session
     docs = dm.generate_doc_list(spark, ext, path).limit(10000)  # generate a list of documents
     docs.persist()
-    print('\nnumber of documents:', docs.count())
-    print('length of the signature:', m, 'bits')
-    print('length of the pieces:', p, 'bits')
-    print('similarity threshold:', s * 100, '%\n')
-    docs.show(10)
+    print('\nlength of the signature:', m, 'bits')
+    print('number of pieces:', p,)
+    print('similarity threshold:', s, 'different bits')
     comp_time = time.perf_counter()
     mapped, simhash_pieces = mapper(spark, docs, m, p)  # map phase
     print(mapped.take(10))
@@ -123,7 +113,7 @@ if __name__ == "__main__":
     elif len(sys.argv) == 3:
         spark_main(sys.argv[1], sys.argv[2])
     elif len(sys.argv) == 6:
-        spark_main(sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), float(sys.argv[5]))
+        spark_main(sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5]))
     else:
         print("Usage: spark-submit main.py <extension of file> <path> [<m> <p> <s>]")
         sys.exit(1)
