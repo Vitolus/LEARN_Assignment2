@@ -1,0 +1,2 @@
+1. SimHash porcess
+

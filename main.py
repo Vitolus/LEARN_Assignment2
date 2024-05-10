@@ -44,7 +44,7 @@ def mapper(spark, docs, m, p):
 def reducer(mapped, simhash_pieces, m, s):
     """
     Reduce Phase:
-    - Group by Piece: Group the documents that have at least half of the pieces of the SimHash equal.
+    - Group by Piece: Group the documents that have one of the pieces of the SimHash equal.
     - Compute Hamming Distance: For each group of documents (that share at least half of the SimHash pieces), compute
     the Hamming distance between the SimHashes of each pair of documents.
     - Compute Cosine Similarity: Still within each group, compute the cosine similarity for each pair of documents.
@@ -55,7 +55,7 @@ def reducer(mapped, simhash_pieces, m, s):
     # Group by piece and sort by docID in each group
     grouped = joined.map(lambda x: (x[1][0], (x[0], x[1][1]))).groupByKey().mapValues(list)
 
-    def reduce_func(key, values):
+    def reduce_func(key, values):  # (piece, [(doc_id, doc),...]) pairs
         values = sorted(values, key=lambda x: x[0])  # sort the values by doc_id
         for i in range(len(values)):
             doc_id1, doc1 = values[i]
@@ -67,8 +67,11 @@ def reducer(mapped, simhash_pieces, m, s):
                 # guarantees that two documents are only compared once
                 if key != min(np.intersect1d(doc1, doc2)):
                     continue
+                # if the number of shared pieces is less than a third of the total number of pieces, skip this iteration
+                # this guarantees to reduce the number of comparisons skipping some false positives but reducing the
+                # accuracy of the number of similar pairs
                 shared_pieces = dm.count_shared_pieces(doc1, doc2)
-                if len(doc1) // 2 <= shared_pieces < len(doc1):
+                if len(doc1) // 3 <= shared_pieces < len(doc1):
                     hamming = dm.compute_hamming_distance(doc1, doc2)
                     if hamming <= s:
                         similarity = dm.compute_cosine_similarity(hamming, m)
@@ -77,7 +80,7 @@ def reducer(mapped, simhash_pieces, m, s):
     return grouped.flatMap(lambda x: reduce_func(x[0], x[1]))  # return the reduced RDD
 
 
-def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=4):
+def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=8):
     spark = SparkSession.builder.appName('SimHash').getOrCreate()  # create a Spark session
     docs = dm.generate_doc_list(spark, ext, path).limit(10000)  # generate a list of documents
     docs.persist()
