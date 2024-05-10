@@ -35,9 +35,8 @@ def mapper(spark, docs, m, p):
         pieces = np.sort(pieces)  # sort the pieces in ascending order
         # take the first half of the pieces to reduce the number of copies across nodes,
         # at the cost of some accuracy in the number of similar pairs
-        pieces = pieces[:len(pieces) // 2]
-        for piece in pieces:
-            yield piece, doc_id
+        for piece in pieces[:len(pieces) // 2]:
+            yield doc_id, piece
 
     return simhash_pieces.flatMap(map_func), simhash_pieces  # return the mapped RDD and the simhash pieces
 
@@ -52,8 +51,7 @@ def reducer(mapped, simhash_pieces, m, s):
     Emit Similar Documents: Finally, for each document, emit the list of documents that are considered similar based on
     the computed cosine similarity and Hamming distance.
     """
-    flipped = mapped.map(lambda x: (x[1], x[0]))  # flip the key-value pairs
-    joined = flipped.join(simhash_pieces)  # Join on docID
+    joined = mapped.join(simhash_pieces)  # Join on docID
     # Group by piece and sort by docID in each group
     grouped = joined.map(lambda x: (x[1][0], (x[0], x[1][1]))).groupByKey().mapValues(list)
 
@@ -79,12 +77,12 @@ def reducer(mapped, simhash_pieces, m, s):
     return grouped.flatMap(lambda x: reduce_func(x[0], x[1]))  # return the reduced RDD
 
 
-def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=5):
+def spark_main(ext="parquet", path="./data/emails/*", m=64, p=8, s=4):
     spark = SparkSession.builder.appName('SimHash').getOrCreate()  # create a Spark session
     docs = dm.generate_doc_list(spark, ext, path).limit(10000)  # generate a list of documents
     docs.persist()
     print('\nlength of the signature:', m, 'bits')
-    print('number of pieces:', p,)
+    print('number of pieces:', p)
     print('similarity threshold:', s, 'different bits')
     comp_time = time.perf_counter()
     mapped, simhash_pieces = mapper(spark, docs, m, p)  # map phase
