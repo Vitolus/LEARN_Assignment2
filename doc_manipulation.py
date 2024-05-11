@@ -12,7 +12,7 @@ def generate_doc_list(spark, ext, path):
         docs = spark.read.parquet(path)
     elif ext == 'csv':
         docs = spark.read.csv(path, header=True)
-        docs = docs.select("summary").rdd.flatMap(lambda x: x)
+        docs = docs.select("summary").withColumnRenamed("summary", "text")
     else:
         print('Invalid extension')
         spark.stop()
