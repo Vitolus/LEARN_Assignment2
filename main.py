@@ -85,6 +85,7 @@ def spark_main(ext="parquet", path="./data/emails/*", n_docs=10000, m=64, p=8, s
     global spark
     docs = dm.generate_doc_list(spark, ext, path).limit(n_docs)  # generate a list of documents
     docs.persist()
+    print('number of documents:', n_docs)
     print('length of the signature:', m, 'bits')
     print('number of pieces:', p)
     print('similarity threshold:', s * 100, '%\n')
@@ -122,5 +123,5 @@ if __name__ == "__main__":
     elif len(sys.argv) == 7:
         spark_main(sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5]), float(sys.argv[6]))
     else:
-        print("Usage: spark-submit main.py <extension of file> <path> [<n_docs> <m> <p> <s>]")
+        print("Usage: [<extension of file> <path>] [<n_docs> <m> <p> <s>]")
         sys.exit(1)
