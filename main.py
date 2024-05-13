@@ -3,8 +3,8 @@ import doc_manipulation as dm
 import time
 import numpy as np
 from pyspark.sql import SparkSession
-# from dotenv import load_dotenv
-# import os
+from dotenv import load_dotenv
+import os
 
 
 def mapper(docs, m, p):
@@ -108,13 +108,14 @@ def spark_main(n_docs=10000, m=64, p=8, s=0.95, ext="parquet", path="./data/emai
 
 
 if __name__ == "__main__":
-    # load_dotenv()
-    # os.environ["PYSPARK_PYTHON"] = os.getenv("PYSPARK_PYTHON")
-    # pyspark_python = os.environ.get("PYSPARK_PYTHON", None)
-    # if pyspark_python:
-    #     print(f"PySpark is using this Python interpreter: {pyspark_python}")
-    # else:
-    #     print("PySpark is using the system's default Python interpreter.")
+    load_dotenv()
+    os.environ["PYSPARK_PYTHON"] = os.getenv("PYSPARK_PYTHON")
+    pyspark_python = os.environ.get("PYSPARK_PYTHON", None)
+    if pyspark_python:
+        print(f"PySpark is using this Python interpreter: {pyspark_python}")
+    else:
+        print("PySpark is using the system's default Python interpreter.")
+
     spark = SparkSession.builder.appName("SimHash").getOrCreate()  # create a Spark session
     spark.sparkContext.setLogLevel('WARN')
     if len(sys.argv) == 1:
