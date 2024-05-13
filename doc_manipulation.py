@@ -55,7 +55,6 @@ def compute_rw(spark, n_terms, m):
     rw = rw.select(random_choice_udf(rw["seed"]).alias("random_line"))
     # Convert DataFrame to RDD
     rw = rw.rdd.map(lambda x: (Vectors.dense(x),)).zipWithIndex().map(lambda x: (x[1], x[0]))
-    print(rw.take(3))
     return rw
 
 
