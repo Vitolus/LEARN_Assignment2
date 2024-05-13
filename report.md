@@ -48,4 +48,7 @@ share a piece.
 
 ### 2. Testing
 
+All testings are performed on the university's cluster using the provided dataset of emails. The performance and scalability of 
+the algorithm is evaluated by measuring the speedup of the version with more workers with respect to the version with
+one worker. The execution time is measured with perf_counter() function of the time library.
 
