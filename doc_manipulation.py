@@ -2,6 +2,7 @@ import numpy as np
 from pyspark.ml.feature import CountVectorizer, IDF, Tokenizer, StopWordsRemover, Normalizer
 from pyspark.sql import functions as F
 from pyspark.ml.linalg import Vectors
+from pyspark.sql.types import *
 import math
 import sys
 
@@ -44,11 +45,18 @@ def compute_rw(spark, n_terms, m):
     """
     This function computes the random lines
     """
-    np.random.seed(66642666)
+    def random_choice(seed):
+        np.random.seed(seed)
+        return [int(x) for x in np.random.choice([-1, 1], size=m)]
+    random_choice_udf = F.udf(random_choice, ArrayType(IntegerType()))
+
     # Generate random lines of -1 and 1 with shape (n_terms, m)
-    rw = spark.sparkContext.parallelize(np.random.choice([-1, 1], size=(n_terms, m)))
-    # Convert to dense vectors and zip with index to get (wordID, random_line) pairs
-    return rw.map(lambda x: (Vectors.dense(x),)).zipWithIndex().map(lambda x: (x[1], x[0]))
+    rw = spark.range(0, n_terms).withColumn("seed", (F.monotonically_increasing_id()) % (2**32 - 1))
+    rw = rw.select(random_choice_udf(rw["seed"]).alias("random_line"))
+    # Convert DataFrame to RDD
+    rw = rw.rdd.map(lambda x: (Vectors.dense(x),)).zipWithIndex().map(lambda x: (x[1], x[0]))
+    print(rw.take(3))
+    return rw
 
 
 def compute_simhash(docs, rw):
