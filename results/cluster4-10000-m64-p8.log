@@ -3,14 +3,14 @@ length of the signature: 64 bits
 number of pieces: 8
 similarity threshold: 95.0 %
 
-tfidf time 23.301048814086244
-rw time 2.654571154154837
-simhash time 0.060587496031075716
-split time 2.5625107809901237e-05
+tfidf time 23.378873670939356
+rw time 4.13403531210497
+simhash time 0.052007525926455855
+split time 7.61798582971096e-06 
 
-map phase time 63.00227529904805
-number of mapped pairs 39992
+map phase time 67.56354264402762
+number of mapped pairs 39992 
 
-reduce phase time 94.2385924840346
-number of similar pairs 1239
-number of equal pairs 489
+reduce phase time 90.50109055498615
+number of similar pairs 974
+number of equal pairs 527
