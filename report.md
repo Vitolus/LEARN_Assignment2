@@ -50,5 +50,17 @@ share a piece.
 
 All testings are performed on the university's cluster using the provided dataset of emails. The performance and scalability of 
 the algorithm is evaluated by measuring the speedup of the version with more workers with respect to the version with
-one worker. The execution time is measured with perf_counter() function of the time library.
+one worker. The execution time is measured with perf_counter() function of the time library. For all testings has been
+used a similarity threshold of 95%; different results on the number fo pairs, at parity of signature and pieces, are due
+to the randomness of the algorithm when generating the term vectors.
 
+| Workers | documents | signature | pieces | mapper time | reducer time | total time | similar pairs | duplicates |
+|---------|-----------|-----------|--------|-------------|--------------|------------|---------------|------------|
+| local   | 10000     | 64        | 4      | 28.24       | 5.66         | 33.90      | 261           | 338        |
+| local   | 10000     | 128       | 4      | 29.40       | 6.26         | 35.66      | 91            | 323        |
+| local   | 10000     | 64        | 8      | 28.76       | 23.00        | 51.76      | 1011          | 527        |
+| local   | 10000     | 128       | 8      | 28.19       | 5.96         | 34.15      | 392           | 325        |
+| local   | 10000     | 64        | 16     | 29.21       | 1702.15      | 1731.36    | 3591          | 9428       |
+| local   | 10000     | 128       | 16     | 27.54       | 67.61        | 95.15      | 1203          | 711        |
+| 4       | 10000     | 64        | 4      | 67.54       | 17.61        | 85.15      | 217           | 338        |
+| 4       | 10000     | 64        | 8      | 67.86       | 90.50        | 108.11     | 974           | 527        |
