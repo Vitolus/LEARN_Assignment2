@@ -71,17 +71,19 @@ def reducer(mapped, simhash_pieces, m, s):
                 # guarantees that two documents are only compared once
                 if key != min(np.intersect1d(doc1, doc2)):
                     continue
-                if dm.count_shared_pieces(doc1, doc2) == len(doc1):
-                    n_equals.add(1)
-                    continue
-                similarity = dm.compute_cosine_similarity(dm.compute_hamming_distance(doc1, doc2), m)
-                if similarity > s:
-                    yield (doc_id1, doc_id2), similarity
+                shared_pieces = dm.count_shared_pieces(doc1, doc2)
+                if shared_pieces >= 1:  # if the documents share one or more pieces
+                    if shared_pieces == len(doc1):
+                        n_equals.add(1)
+                        continue
+                    similarity = dm.compute_cosine_similarity(dm.compute_hamming_distance(doc1, doc2), m)
+                    if similarity > s:
+                        yield (doc_id1, doc_id2), similarity
 
     return grouped.flatMap(lambda x: reduce_func(x[0], x[1])), n_equals  # return the reduced RDD
 
 
-def spark_main(ext="parquet", path="./data/emails/*", n_docs=10000, m=64, p=8, s=0.95):
+def spark_main(n_docs=10000, m=64, p=8, s=0.95, ext="parquet", path="./data/emails/*"):
     global spark
     docs = dm.generate_doc_list(spark, ext, path).limit(n_docs)  # generate a list of documents
     docs.persist()
@@ -115,13 +117,12 @@ if __name__ == "__main__":
     #     print("PySpark is using the system's default Python interpreter.")
     spark = SparkSession.builder.appName("SimHash").getOrCreate()  # create a Spark session
     spark.sparkContext.setLogLevel('WARN')
-
     if len(sys.argv) == 1:
         spark_main()
-    elif len(sys.argv) == 3:
-        spark_main(sys.argv[1], sys.argv[2])
+    elif len(sys.argv) == 5:
+        spark_main(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), float(sys.argv[4]))
     elif len(sys.argv) == 7:
-        spark_main(sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5]), float(sys.argv[6]))
+        spark_main(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), float(sys.argv[4]), sys.argv[5], sys.argv[6])
     else:
-        print("Usage: [<extension of file> <path>] [<n_docs> <m> <p> <s>]")
+        print("Usage: [<n_docs> <m> <p> <s>] [<extension of file> <path>]")
         sys.exit(1)
