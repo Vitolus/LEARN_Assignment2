@@ -1,16 +1,17 @@
+PySpark is using this Python interpreter: /home/vito/.virtualenvs/LEARN_Assignment2/bin/python
 number of documents: 10000
 length of the signature: 64 bits
 number of pieces: 8
 similarity threshold: 95.0 %
 
-tfidf time 9.215964131999954
-rw time 1.5037711810000474
-simhash time 0.032439808000162884
-split time 5.2699997468153015e-06 
+tfidf time 9.70164330499938
+rw time 2.474555168000734
+simhash time 0.033588972999496036
+split time 4.900000931229442e-06 
 
-map phase time 26.178042129000005
+map phase time 28.765785052000865
 number of mapped pairs 39992 
 
-reduce phase time 35.672198495999965
-number of similar pairs 1246
-number of equal pairs 489
+reduce phase time 23.004058978000103
+number of similar pairs 1011
+number of equal pairs 527
