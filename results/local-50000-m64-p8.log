@@ -1,0 +1,16 @@
+number of documents: 50000
+length of the signature: 64 bits
+number of pieces: 8
+similarity threshold: 95.0 %
+
+tfidf time 24.123188743000355
+rw time 3.2429748739996285
+simhash time 0.03296251299980213
+split time 8.819999493425712e-06 
+
+map phase time 111.75544644699767
+number of mapped pairs 199860 
+
+reduce phase time 392.4679470230003
+number of similar pairs 35965
+number of equal pairs 12460
