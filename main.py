@@ -83,7 +83,7 @@ def reducer(mapped, simhash_pieces, m, s):
     return grouped.flatMap(lambda x: reduce_func(x[0], x[1])), n_equals  # return the reduced RDD
 
 
-def spark_main(n_docs=10000, m=64, p=8, s=0.95, ext="parquet", path="./data/emails/*"):
+def spark_main(n_docs=10000, m=64, p=4, s=0.95, ext="parquet", path="./data/emails/*"):
     global spark
     docs = dm.generate_doc_list(spark, ext, path).limit(n_docs)  # generate a list of documents
     docs.persist()
